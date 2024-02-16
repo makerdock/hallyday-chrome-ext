@@ -1,17 +1,10 @@
-// import React from "react";
-// import logo from "@assets/img/logo.svg";
-// import "@pages/sidepanel/SidePanel.css";
-// import useStorage from "@src/shared/hooks/useStorage";
-// import exampleThemeStorage from "@src/shared/storages/exampleThemeStorage";
-// import withSuspense from "@src/shared/hoc/withSuspense";
-// import withErrorBoundary from "@src/shared/hoc/withErrorBoundary";
-
 import { useEffect, useState } from "react";
 
 const SidePanel = () => {
-  // const theme = useStorage(exampleThemeStorage);
-
-  const [msgs, setMsgs] = useState([]);
+  const [msgs, setMsgs] = useState([
+    "- The customer wants to know: What does KPI mean?",
+    "-The customer wants to know: Why the pricing looks so high.",
+  ]);
 
   useEffect(() => {
     console.log("=> msgs: ", msgs);
@@ -22,24 +15,28 @@ const SidePanel = () => {
       console.log("request.message.data: ", request.message.data);
 
       switch (request.message.type) {
-        case "CLIENT_TRANSCRIPT":
-          // updateSidePanel("</br>[CLIENT]--> " + request.message.data);
-          setMsgs((prev) => [...prev, "[CLIENT]--> " + request.message.data]);
-          break;
-
-        case "REP_TRANSCRIPT":
-          // updateSidePanel("</br>[REP]--> " + request.message.data);
-          setMsgs((prev) => [...prev, "[REP]--> " + request.message.data]);
+        case "CLIENT_TRANSCRIPT_CONTEXT":
+          setMsgs((prev) => [...prev, request.message.data]);
           break;
       }
     });
   }, []);
 
   return (
-    <div>
-      {msgs.map((msg, index) => {
-        return <p key={index}>{msg}</p>;
-      })}
+    <div className="h-full pb-8">
+      <h2 className="p-4 bg-gray-300">Hallyday AI</h2>
+      <div className="overflow-auto h-full p-4">
+        {msgs.map((msg, index) => {
+          return (
+            <p
+              className="bg-white rounded-md mb-4 p-2 shadow-lg min-h-[80px]"
+              key={index}
+            >
+              {msg}
+            </p>
+          );
+        })}
+      </div>
     </div>
   );
 };

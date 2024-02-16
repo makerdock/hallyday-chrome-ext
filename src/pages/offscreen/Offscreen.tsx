@@ -121,11 +121,11 @@ const Offscreen = () => {
 
             // const combinedStream = mix(output, [media, audioStream]);
 
-            client_mediaRecorder = new MediaRecorder(audioStream, {
+            client_mediaRecorder = new MediaRecorder(media, {
               mimeType: "video/webm",
             });
 
-            rep_mediaRecorder = new MediaRecorder(media, {
+            rep_mediaRecorder = new MediaRecorder(audioStream, {
               mimeType: "video/webm",
             });
 
@@ -140,14 +140,16 @@ const Offscreen = () => {
             );
 
             client_socket.onopen = () => {
-              client_mediaRecorder.start(250);
+              client_mediaRecorder.start(1000);
             };
 
             rep_socket.onopen = () => {
-              rep_mediaRecorder.start(250);
+              rep_mediaRecorder.start(1000);
             };
 
-            client_socket.onmessage = (msg) => {
+            client_socket.onmessage = async (msg) => {
+              console.log("JSON.parse(msg.data): ", JSON.parse(msg.data));
+
               const { transcript } = JSON.parse(msg.data).channel
                 .alternatives[0];
               if (transcript) {
@@ -157,11 +159,29 @@ const Offscreen = () => {
                   "\x1b"
                 );
 
+                // chrome.runtime.sendMessage({
+                //   message: {
+                //     type: "CLIENT_TRANSCRIPT",
+                //     target: "sidepanel",
+                //     data: transcript,
+                //   },
+                // });
+
+                const response = await fetch("http://localhost:3005/api/meet", {
+                  method: "POST",
+                  body: JSON.stringify({
+                    transcription: transcript,
+                  }),
+                });
+
+                const data = await response.json();
+                console.log("data: ", data);
+
                 chrome.runtime.sendMessage({
                   message: {
-                    type: "CLIENT_TRANSCRIPT",
+                    type: "CLIENT_TRANSCRIPT_CONTEXT",
                     target: "sidepanel",
-                    data: transcript,
+                    data: data.response,
                   },
                 });
               }
@@ -173,20 +193,52 @@ const Offscreen = () => {
               if (transcript) {
                 console.log("\x1b[32m[REP] transcript ->", transcript, "\x1b");
 
-                chrome.runtime.sendMessage({
-                  message: {
-                    type: "REP_TRANSCRIPT",
-                    target: "sidepanel",
-                    data: transcript,
-                  },
-                });
+                // chrome.runtime.sendMessage({
+                //   message: {
+                //     type: "REP_TRANSCRIPT",
+                //     target: "sidepanel",
+                //     data: transcript,
+                //   },
+                // });
               }
             };
 
+            // let debounceTimer: NodeJS.Timeout | null = null; // Variable to store debounce timer
+
+            // client_mediaRecorder.ondataavailable = (event) => {
+            //   console.log("on client data...", event.data);
+
+            //   if (debounceTimer) {
+            //     clearTimeout(debounceTimer);
+            //   }
+
+            //   debounceTimer = setTimeout(() => {
+            //     console.log("SENDING CLIENT DATA....");
+
+            //     if (event.data.size > 0 && client_socket.readyState == 1)
+            //       client_socket.send(event.data);
+            //   }, 2000);
+            // };
+
+            const client_data = [];
+
             client_mediaRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0 && client_socket.readyState == 1)
-                client_socket.send(event.data);
+              if (event.data.size > 0 && client_socket.readyState == 1) {
+                // client_socket.send(event.data);
+                client_data.push(event.data);
+
+                console.log("[on data] event.data: ", event.data);
+              }
             };
+
+            setInterval(() => {
+              if (client_data.length > 0) {
+                console.log("<-- SENDING DATA -->");
+                client_socket.send(
+                  new Blob(client_data.splice(0, client_data.length))
+                );
+              }
+            }, 5000);
 
             rep_mediaRecorder.ondataavailable = (event) => {
               if (event.data.size > 0 && rep_socket.readyState == 1)
