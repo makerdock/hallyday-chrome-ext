@@ -1,3 +1,6 @@
+import { RecordingStates } from "../../../utils/recordingState";
+// import { createClient } from "@supabase/supabase-js";
+
 /**
  * Path to the offscreen HTML document.
  * @type {string}
@@ -15,7 +18,14 @@ enum Reason {
 
 const OFFSCREEN_REASON: Reason = Reason.USER_MEDIA; // Use the appropriate Reason enum value
 
+const HALLYDAY_WEBAPP = "https://hallyday-dashboard.vercel.app";
+
 let actionClicked = false;
+
+// const supabase = createClient(
+//   "https://fhkdrjttwyipealchxne.supabase.co",
+//   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoa2RyanR0d3lpcGVhbGNoeG5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDgwODgyNDIsImV4cCI6MjAyMzY2NDI0Mn0.YMSvBR5BXRV1lfXI5j_z-Gd6v0cZNojONjf3YHTiHNY"
+// );
 
 /**
  * Listener for extension installation.
@@ -42,15 +52,10 @@ chrome.runtime.onMessage.addListener((request) => {
     case "TOGGLE_RECORDING":
       switch (request.message.data) {
         case "START":
-          // chrome.action.onClicked.dispatch();
-
-          // chrome.ction.openPopup();
-
           initateRecordingStart();
 
           console.log("STARTING..", request);
 
-          // openSidePanel(sender.tab.id);
           break;
         case "STOP":
           initateRecordingStop();
@@ -60,17 +65,85 @@ chrome.runtime.onMessage.addListener((request) => {
     case "SHOW_SIDEPANEL":
       openSidePanel();
       break;
+    case "LOGIN":
+      login();
+      break;
   }
 });
 
-async function openSidePanel() {
-  // await chrome.sidePanel.open({ tabId });
-  // await chrome.sidePanel.setOptions({
-  //   tabId: sender.tab.id,
-  //   path: "sidepanel-tab.html",
-  //   enabled: true,
-  // });
+async function login() {
+  // Store the current tab id
+  const tabs = await chrome.tabs.query({ active: true });
+  console.log("[TAB ACTIVATED QUERY] tabs: ", tabs[0]);
 
+  await chrome.storage.local.set({
+    current_tab: tabs[0].id,
+  });
+
+  chrome.tabs.onUpdated.removeListener(setTokens);
+
+  const authUrl =
+    "https://fhkdrjttwyipealchxne.supabase.co/auth/v1/authorize?provider=google";
+
+  // create new tab with that url
+  chrome.tabs.create({ url: authUrl, active: true }, (tab) => {
+    chrome.tabs.onUpdated.addListener(setTokens);
+  });
+}
+
+const setTokens = async (
+  tabId: number,
+  changeInfo: chrome.tabs.TabChangeInfo,
+  tab: chrome.tabs.Tab
+) => {
+  // once the tab is loaded
+  if (tab.status === "complete") {
+    if (!tab.url) return;
+
+    console.log("<--TAB LOAD COMPLETE -->", tab.url);
+
+    const url = new URL(tab.url);
+
+    if (url.origin === HALLYDAY_WEBAPP) {
+      const params = new URLSearchParams(url.href.split("#")[1]);
+
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+
+      if (accessToken && refreshToken) {
+        if (!tab.id) return;
+
+        console.log("--> tokens: ", accessToken, refreshToken);
+
+        // we can close that tab now
+        await chrome.tabs.remove(tab.id);
+
+        // Reopen google meet tab
+        chrome.storage.local.get(["current_tab"], ({ current_tab }) => {
+          chrome.tabs.update(current_tab, { highlighted: true });
+
+          // Reset
+          chrome.storage.local.set({
+            current_tab: "",
+          });
+        });
+
+        // store access_token and refresh_token in storage as these will be used to authenticate user in chrome extension
+        await chrome.storage.local.set({
+          accessToken,
+        });
+        await chrome.storage.local.set({
+          refreshToken,
+        });
+
+        // remove tab listener as tokens are set
+        chrome.tabs.onUpdated.removeListener(setTokens);
+      }
+    }
+  }
+};
+
+async function openSidePanel() {
   console.log("<-- Inside openSidePanel -->");
 
   chrome.tabs.query(
@@ -80,9 +153,9 @@ async function openSidePanel() {
 
       console.log("tabdId: ", tabId);
 
-      await chrome.sidePanel.open({ tabId });
+      chrome.sidePanel.open({ tabId });
 
-      await chrome.sidePanel.setOptions({
+      chrome.sidePanel.setOptions({
         tabId,
         path: "src/pages/sidepanel/index.html",
         enabled: true,
@@ -121,7 +194,9 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   // console.log("[TAB ACTIVATED] resp: ", resp);
 
   const tabs = await chrome.tabs.query({ active: true });
-  // console.log("[TAB ACTIVATED QUERY] tabs: ", tabs[0].url);
+  console.log("[TAB ACTIVATED QUERY] tabs: ", tabs[0]);
+
+  if (!tabs[0].url) return;
 
   // TODO: Avoid duplicate code
   const url = new URL(tabs[0].url);
@@ -170,7 +245,22 @@ async function sendMessageToOffscreenDocument(type: string, data?: any) {
 function initateRecordingStop() {
   console.log("Recording stopped at offscreen");
   sendMessageToOffscreenDocument("STOP_OFFSCREEN_RECORDING");
+
+  chrome.storage.local.set({
+    recording_state: RecordingStates.ENDED,
+  });
+
+  chrome.notifications.create({
+    title: "Hallyday AI assistant",
+    message: "Meeting ended",
+    type: "basic",
+    iconUrl: chrome.runtime.getURL("icon-34.png"),
+  });
 }
+
+chrome.notifications.onClicked.addListener(async () => {
+  chrome.tabs.create({ url: HALLYDAY_WEBAPP, active: true });
+});
 
 /**
  * Initiates the start recording process.
@@ -211,6 +301,10 @@ function initateRecordingStart() {
                   "START_OFFSCREEN_RECORDING",
                   streamId
                 );
+
+                chrome.storage.local.set({
+                  recording_state: RecordingStates.IN_PROGRESS,
+                });
               }
             );
           }

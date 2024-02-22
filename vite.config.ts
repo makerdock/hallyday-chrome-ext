@@ -45,6 +45,10 @@ export default defineConfig({
           src: "src/requestPermissions.js",
           dest: "",
         },
+        {
+          src: "supabase.js",
+          dest: "",
+        },
       ],
     }),
   ],
@@ -87,6 +91,7 @@ export default defineConfig({
           return `assets/[ext]/${name}.chunk.[ext]`;
         },
       },
+      external: ["utils/recordingState"],
     },
   },
 });

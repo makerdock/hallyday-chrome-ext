@@ -7,6 +7,7 @@ const Offscreen = () => {
   let rep_mediaRecorder;
   let data = [];
 
+  let old_transcript = "";
   let client_socket;
   let rep_socket;
   const apiKey = "bd7d01faf4086045f8f1e7ff4f0c06983d608352";
@@ -152,10 +153,22 @@ const Offscreen = () => {
 
               const { transcript } = JSON.parse(msg.data).channel
                 .alternatives[0];
+
               if (transcript) {
+                console.log("---> old_transcript: ", old_transcript);
                 console.log(
                   "\x1b[31m[CLIENT] transcript ->",
                   transcript,
+                  "\x1b"
+                );
+
+                old_transcript = old_transcript
+                  ? old_transcript + " " + transcript
+                  : transcript;
+
+                console.log(
+                  "\x1b[31m[RESOLVED CLIENT] transcript ->",
+                  old_transcript,
                   "\x1b"
                 );
 
@@ -170,20 +183,38 @@ const Offscreen = () => {
                 const response = await fetch("http://localhost:3005/api/meet", {
                   method: "POST",
                   body: JSON.stringify({
-                    transcription: transcript,
+                    transcription: old_transcript,
                   }),
                 });
 
                 const data = await response.json();
                 console.log("data: ", data);
 
-                chrome.runtime.sendMessage({
-                  message: {
-                    type: "CLIENT_TRANSCRIPT_CONTEXT",
-                    target: "sidepanel",
-                    data: data.response,
-                  },
-                });
+                if (
+                  data.response &&
+                  data.response.length > 0 &&
+                  data.response !== '""'
+                ) {
+                  // Reset the old data
+                  old_transcript = "";
+
+                  chrome.runtime.sendMessage({
+                    message: {
+                      type: "CLIENT_TRANSCRIPT_CONTEXT",
+                      target: "sidepanel",
+                      data: data.response,
+                    },
+                  });
+                } else {
+                  // Set the old transcript so that it can be appended with the next api call
+                  // old_transcript = old_transcript + " " + transcript;
+
+                  console.log(
+                    "\x1b[33m[OLD TRANSCRIPT] transcript ->",
+                    old_transcript,
+                    "\x1b"
+                  );
+                }
               }
             };
 
@@ -231,6 +262,7 @@ const Offscreen = () => {
               }
             };
 
+            // https://stackoverflow.com/a/51355276
             setInterval(() => {
               if (client_data.length > 0) {
                 console.log("<-- SENDING DATA -->");

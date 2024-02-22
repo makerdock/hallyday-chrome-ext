@@ -1,4 +1,3 @@
-// import { createClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import { RecordingStates } from "../../../utils/recordingState";
 
@@ -63,24 +62,18 @@ const SidePanel = () => {
         if ("recording_state" === key) {
           updateState(newValue);
         } else if ("accessToken" === key || "refreshToken" === key) {
-          handleTokens();
+          const tokens = (await getTokens()) as Tokens;
+
+          const { accessToken, refreshToken } = tokens;
+          if (accessToken && refreshToken) setLoggedIn(true);
         }
       }
     });
-
-    handleTokens();
   }, []);
-
-  async function handleTokens() {
-    const tokens = (await getTokens()) as Tokens;
-
-    const { accessToken, refreshToken } = tokens;
-    if (accessToken && refreshToken) setLoggedIn(true);
-  }
 
   function getTokens() {
     return new Promise((resolve, reject) => {
-      chrome.storage.local.get(
+      chrome.storage.sync.get(
         ["accessToken", "refreshToken"],
         ({ accessToken, refreshToken }) => {
           resolve({ accessToken, refreshToken });
@@ -106,15 +99,6 @@ const SidePanel = () => {
     });
   }, []);
 
-  function handleLogin() {
-    chrome.runtime.sendMessage({
-      message: {
-        type: "LOGIN",
-        target: "background",
-      },
-    });
-  }
-
   return (
     <div>
       {loggedIn ? (
@@ -137,13 +121,8 @@ const SidePanel = () => {
           </div>
         </div>
       ) : (
-        <div className="w-full flex mt-4">
-          <button
-            className="p-2 px-4 bg-gray-500 rounded-md mx-auto"
-            onClick={handleLogin}
-          >
-            LogIn
-          </button>
+        <div>
+          <button className="p-2 px-4 bg-gray-500 rounded-md">LogIn</button>
         </div>
       )}
     </div>

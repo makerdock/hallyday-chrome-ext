@@ -118,6 +118,8 @@ function addBtn() {
   button.style.visibility = "hidden";
   button.style.position = "absolute";
 
+  document.body.append(button);
+
   button.addEventListener("click", function () {
     chrome.runtime.sendMessage({
       message: {
@@ -126,6 +128,4 @@ function addBtn() {
       },
     });
   });
-
-  document.body.append(button);
 }
