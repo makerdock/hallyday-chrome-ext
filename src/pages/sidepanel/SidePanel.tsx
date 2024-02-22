@@ -116,7 +116,7 @@ const SidePanel = () => {
   }
 
   return (
-    <div>
+    <div className="h-full">
       {loggedIn ? (
         <div className="h-full pb-8">
           <div className="flex items-center justify-between p-4 bg-gray-300">
