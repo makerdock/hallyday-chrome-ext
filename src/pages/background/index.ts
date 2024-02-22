@@ -1,4 +1,5 @@
 import { RecordingStates } from "../../../utils/recordingState";
+const createClient = require("@supabase/supabase-js").createClient;
 // import { createClient } from "@supabase/supabase-js";
 
 /**
@@ -22,10 +23,10 @@ const HALLYDAY_WEBAPP = "https://hallyday-dashboard.vercel.app";
 
 let actionClicked = false;
 
-// const supabase = createClient(
-//   "https://fhkdrjttwyipealchxne.supabase.co",
-//   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoa2RyanR0d3lpcGVhbGNoeG5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDgwODgyNDIsImV4cCI6MjAyMzY2NDI0Mn0.YMSvBR5BXRV1lfXI5j_z-Gd6v0cZNojONjf3YHTiHNY"
-// );
+const supabase = createClient(
+  "https://fhkdrjttwyipealchxne.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoa2RyanR0d3lpcGVhbGNoeG5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDgwODgyNDIsImV4cCI6MjAyMzY2NDI0Mn0.YMSvBR5BXRV1lfXI5j_z-Gd6v0cZNojONjf3YHTiHNY"
+);
 
 /**
  * Listener for extension installation.
@@ -153,13 +154,16 @@ async function openSidePanel() {
 
       console.log("tabdId: ", tabId);
 
-      chrome.sidePanel.open({ tabId });
-
-      chrome.sidePanel.setOptions({
-        tabId,
-        path: "src/pages/sidepanel/index.html",
-        enabled: true,
-      });
+      try {
+        chrome.sidePanel.open({ tabId });
+        chrome.sidePanel.setOptions({
+          tabId,
+          path: "src/pages/sidepanel/index.html",
+          enabled: true,
+        });
+      } catch (error) {
+        console.error("Error opening sidepanel: ", error);
+      }
     }
   );
 }
@@ -173,19 +177,11 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
 
   if (!tab.url) return;
 
-  const url = new URL(tab.url);
-
-  // console.log("url: ", url);
-
-  if (url.origin === "https://meet.google.com") {
-    chrome.sidePanel.setOptions({
-      tabId,
-      path: "src/pages/sidepanel/index.html",
-      enabled: true,
-    });
-  } else {
-    chrome.sidePanel.setOptions({ tabId, enabled: false });
-  }
+  // chrome.sidePanel.setOptions({
+  //   tabId,
+  //   path: "src/pages/sidepanel/index.html",
+  //   enabled: true,
+  // });
 });
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
