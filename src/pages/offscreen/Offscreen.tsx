@@ -180,20 +180,23 @@ const Offscreen = () => {
                 //   },
                 // });
 
-                const response = await fetch("http://localhost:3005/api/meet", {
-                  method: "POST",
-                  body: JSON.stringify({
-                    transcription: old_transcript,
-                  }),
-                });
+                const response = await fetch(
+                  "https://hallyday-dashboard.vercel.app/api/ai/reply",
+                  {
+                    method: "POST",
+                    body: JSON.stringify({
+                      transcription: old_transcript,
+                    }),
+                  }
+                );
 
                 const data = await response.json();
                 console.log("data: ", data);
 
                 if (
-                  data.response &&
-                  data.response.length > 0 &&
-                  data.response !== '""'
+                  data.aiResponseContent &&
+                  data.aiResponseContent.length > 0 &&
+                  data.aiResponseContent !== '""'
                 ) {
                   // Reset the old data
                   old_transcript = "";
@@ -202,7 +205,7 @@ const Offscreen = () => {
                     message: {
                       type: "CLIENT_TRANSCRIPT_CONTEXT",
                       target: "sidepanel",
-                      data: data.response,
+                      data: data.aiResponseContent,
                     },
                   });
                 } else {
