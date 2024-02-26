@@ -6,6 +6,7 @@ import customDynamicImport from "./utils/plugins/custom-dynamic-import";
 import addHmr from "./utils/plugins/add-hmr";
 import manifest from "./manifest";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+import requireTransform from "vite-plugin-require-transform";
 
 const root = resolve(__dirname, "src");
 const pagesDir = resolve(root, "pages");
@@ -46,11 +47,12 @@ export default defineConfig({
           dest: "",
         },
         {
-          src: "supabase.js",
-          dest: "",
+          src: "src/pages/sidepanel/supabase.js",
+          dest: "src/pages/sidepanel",
         },
       ],
     }),
+    // requireTransform({}),
   ],
   publicDir,
   build: {
@@ -110,3 +112,13 @@ function regenerateCacheInvalidationKey() {
 function generateKey(): string {
   return `${(Date.now() / 100).toFixed()}`;
 }
+
+// check the vite-plugin-require-transform params'type
+// export type VitePluginRequireTransformParamsType = {
+//   //filter files that should enter the plugin
+//   fileRegex?: RegExp = /.ts$|.tsx$/;
+//   //prefix that would plugin into the requireSpecifier
+//   importPrefix?: string = "_vite_plugin_require_transform_";
+//   //to deal with the requireSpecifier
+//   importPathHandler?: Function;
+// };

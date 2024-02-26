@@ -34,7 +34,7 @@ const manifest: chrome.runtime.ManifestV3 = {
       matches: ["https://meet.google.com/*"],
       js: ["src/pages/content/index.js"],
       // KEY for cache invalidation
-      css: ["assets/css/contentStyle<KEY>.chunk.css"],
+      css: [],
     },
   ],
   web_accessible_resources: [

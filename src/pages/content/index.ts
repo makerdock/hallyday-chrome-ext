@@ -109,18 +109,30 @@ const eleFound = setInterval(async function () {
 }, 100); // check every 100ms
 
 function addBtn() {
-  const button = new DOMParser().parseFromString(
-    "<button>Click to open side panel</button>",
+  const btnDiv = new DOMParser().parseFromString(
+    "<div>Open/Close side panel</div>",
     "text/html"
   ).body.firstElementChild as HTMLElement;
 
-  button.classList.add("btn-panel");
-  button.style.visibility = "hidden";
-  button.style.position = "absolute";
+  btnDiv.classList.add("btn-panel");
 
-  document.body.append(button);
+  btnDiv.style.borderRadius = "20px";
+  btnDiv.style.backgroundColor = "#3C4043";
+  btnDiv.style.padding = "12px";
+  btnDiv.style.fontWeight = "700";
+  btnDiv.style.fontSize = "14px";
+  btnDiv.style.marginLeft = "8px";
+  btnDiv.style.cursor = "pointer";
 
-  button.addEventListener("click", function () {
+  // button.style.visibility = "hidden";
+  // button.style.position = "absolute";
+
+  const actionsDiv = document.querySelector(".Tmb7Fd");
+
+  // document.body.append(button);
+  actionsDiv.append(btnDiv);
+
+  btnDiv.addEventListener("click", function () {
     chrome.runtime.sendMessage({
       message: {
         type: "SHOW_SIDEPANEL",

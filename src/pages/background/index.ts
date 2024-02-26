@@ -1,6 +1,16 @@
+import {
+  areTokensSet,
+  isRecordingInProgress,
+  isSameTab,
+} from "../../../utils/recorderUtils";
+// import { Tokens, getTokens } from "../../../utils/getTokens";
 import { RecordingStates } from "../../../utils/recordingState";
-const createClient = require("@supabase/supabase-js").createClient;
+
 // import { createClient } from "@supabase/supabase-js";
+// import { createRequire } from "module";
+// const require = createRequire(import.meta.url);
+
+// const createClient = require("@supabase/supabase-js").createClient;
 
 /**
  * Path to the offscreen HTML document.
@@ -21,26 +31,129 @@ const OFFSCREEN_REASON: Reason = Reason.USER_MEDIA; // Use the appropriate Reaso
 
 const HALLYDAY_WEBAPP = "https://hallyday-dashboard.vercel.app";
 
-let actionClicked = false;
+// let actionClicked = false;
 
-const supabase = createClient(
-  "https://fhkdrjttwyipealchxne.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoa2RyanR0d3lpcGVhbGNoeG5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDgwODgyNDIsImV4cCI6MjAyMzY2NDI0Mn0.YMSvBR5BXRV1lfXI5j_z-Gd6v0cZNojONjf3YHTiHNY"
-);
+// let isSidePanelFirstOpen = true;
+let isSidePanelVisible = false;
+
+// interface MeetingUrl {
+//   cur_meeting_url: string;
+// }
+
+// interface RecordingState {
+//   recording_state: string;
+// }
 
 /**
  * Listener for extension installation.
  */
 chrome.runtime.onInstalled.addListener(handleInstall);
 
-chrome.action.onClicked.addListener(() => {
-  actionClicked = !actionClicked;
+chrome.action.onClicked.addListener(async (tab) => {
+  // console.log("Action clicked....", actionClicked);
 
-  console.log("Action clicked....", actionClicked);
+  // 1. is User logged in?
+  if (!(await areTokensSet())) return;
 
-  if (actionClicked) initateRecordingStart();
-  else initateRecordingStop();
+  // 2. Is another recording in progress?
+  // will handle both tab refresh or starting a new meeting in a diff tab
+
+  // 2.1 in the same tab? to toggle the start/stop (isRecordingInProgressInSameTab())
+  // 2.2 in a different tab? (isRecordingInProgressInDifferentTab())
+  // if (await isRecordingInProgress()) return;
+
+  // FIRST TIME AFTER INSTALL
+  // recording_state = ENDED, cur_meeting_url = '' --> Start recording (and turns into)
+  // recording_state = IN_PROGRESS, cur_meeting_url = 'https://..'
+
+  // RECORDING IN PROGRESS (Clicking icon in same tab)
+  // recording_state = IN_PROGRESS, cur_meeting_url = 'https://..' --> Stops recording (and turns into)
+  // recording_state = ENDED, cur_meeting_url = ''
+
+  // recording_state | cur_meeting_url | status
+  // ENDED           | EMPTY           | No recording in progress (new meeting)
+  // ENDED           | NOT EMPTY       | ??
+  // IN_PROGRESS     | EMPTY           | ??
+  // IN_PROGRESS     | NOT EMPTY       | Recording in progress (stop meeting)
+
+  // <== IGNORE FOR NOW ==>
+  // RECORDING IN PROGRESS (Clicking icon in diff tab)
+  // recording_state = IN_PROGRESS, cur_meeting_url = 'https://..' --> Pause recording
+
+  if (await isRecordingInProgress()) {
+    console.log("=== RECORDING IS IN PROGRESS ===");
+
+    if (await isSameTab()) initateRecordingStop();
+    // If user is trying to record from an another tab
+    else {
+      console.log("Recording is in progress in another tab");
+
+      chrome.notifications.create({
+        title: "Hallyday AI assistant",
+        message: "Recording is in progress in another tab",
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("icon-34.png"),
+      });
+      return;
+    }
+  } else initateRecordingStart();
+
+  // if (!actionClicked) initateRecordingStart();
+  // else initateRecordingStop();
+
+  // actionClicked = !actionClicked;
 });
+
+// async function isLoggedIn() {
+//   const { accessToken, refreshToken } = (await getTokens()) as Tokens;
+
+//   return accessToken && refreshToken;
+// }
+
+// async function isSameTab() {
+//   // check whether cur_meeting_url is equal to the tab which is active
+//   const tabs = await chrome.tabs.query({ active: true });
+//   console.log("[isValidTab] tabs: ", tabs[0]);
+
+//   const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
+//   console.log("[isValidTab] cur_meeting_url: ", cur_meeting_url);
+
+//   return (
+//     tabs[0].url &&
+//     cur_meeting_url &&
+//     new URL(tabs[0].url).pathname === new URL(cur_meeting_url).pathname
+//   );
+// }
+
+// async function isRecordingInProgress() {
+//   const { recording_state } = (await getRecordingState()) as RecordingState;
+//   // const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
+
+//   return (
+//     RecordingStates.IN_PROGRESS === recording_state
+//     // cur_meeting_url &&
+//     // cur_meeting_url.length > 0 // Not empty
+//   );
+
+//   // Incase of clicking icon from a different tab check, need to verify the url as well
+//   // instead of just non empty check
+// }
+
+// async function getMeetingUrl() {
+//   return new Promise((resolve, reject) => {
+//     chrome.storage.local.get(["cur_meeting_url"], ({ cur_meeting_url }) => {
+//       resolve({ cur_meeting_url });
+//     });
+//   });
+// }
+
+// async function getRecordingState() {
+//   return new Promise((resolve, reject) => {
+//     chrome.storage.local.get(["recording_state"], ({ recording_state }) => {
+//       resolve({ recording_state });
+//     });
+//   });
+// }
 
 /**
  * Listener for messages from the extension.
@@ -50,19 +163,19 @@ chrome.action.onClicked.addListener(() => {
  */
 chrome.runtime.onMessage.addListener((request) => {
   switch (request.message.type) {
-    case "TOGGLE_RECORDING":
-      switch (request.message.data) {
-        case "START":
-          initateRecordingStart();
+    // case "TOGGLE_RECORDING":
+    //   switch (request.message.data) {
+    //     case "START":
+    //       initateRecordingStart();
 
-          console.log("STARTING..", request);
+    //       console.log("STARTING..", request);
 
-          break;
-        case "STOP":
-          initateRecordingStop();
-          break;
-      }
-      break;
+    //       break;
+    //     case "STOP":
+    //       initateRecordingStop();
+    //       break;
+    //   }
+    //   break;
     case "SHOW_SIDEPANEL":
       openSidePanel();
       break;
@@ -71,6 +184,28 @@ chrome.runtime.onMessage.addListener((request) => {
       break;
   }
 });
+
+// chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+//   switch (request.message.type) {
+//     case "FETCH_CUR_URL":
+//       console.log("RECEIVED msg - FETCH_CUR_URL, SENDER:", sender);
+
+//       fetchCurUrl().then((data) => {
+//         sendResponse(data);
+//       });
+
+//       break;
+//   }
+
+//   return true;
+// });
+
+// async function fetchCurUrl() {
+//   const tabs = await chrome.tabs.query({ active: true });
+//   console.log("[fetchCurUrl] tabs: ", tabs[0]);
+
+//   return tabs[0].url;
+// }
 
 async function login() {
   // Store the current tab id
@@ -145,22 +280,35 @@ const setTokens = async (
 };
 
 async function openSidePanel() {
-  console.log("<-- Inside openSidePanel -->");
+  console.log("<-- Inside openSidePanel -->", isSidePanelVisible);
 
   chrome.tabs.query(
     { active: true, lastFocusedWindow: true },
     async ([tab]) => {
       const tabId = tab.id;
 
-      console.log("tabdId: ", tabId);
+      console.log("1 tabdId: ", tabId);
 
       try {
-        chrome.sidePanel.open({ tabId });
-        chrome.sidePanel.setOptions({
-          tabId,
-          path: "src/pages/sidepanel/index.html",
-          enabled: true,
-        });
+        if (!isSidePanelVisible) {
+          chrome.sidePanel.setOptions({
+            tabId,
+            path: "src/pages/sidepanel/index.html",
+            enabled: true,
+          });
+
+          await chrome.sidePanel.open({ tabId });
+        } else {
+          chrome.sidePanel.setOptions({
+            tabId,
+            enabled: false,
+          });
+        }
+
+        isSidePanelVisible = !isSidePanelVisible;
+
+        const options = await chrome.sidePanel.getOptions({ tabId });
+        console.log("OPTIONS: ", options);
       } catch (error) {
         console.error("Error opening sidepanel: ", error);
       }
@@ -177,11 +325,19 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
 
   if (!tab.url) return;
 
-  // chrome.sidePanel.setOptions({
-  //   tabId,
-  //   path: "src/pages/sidepanel/index.html",
-  //   enabled: true,
-  // });
+  const url = new URL(tab.url);
+
+  // console.log("url: ", url);
+
+  if (url.origin === "https://meet.google.com") {
+    chrome.sidePanel.setOptions({
+      tabId,
+      path: "src/pages/sidepanel/index.html",
+      enabled: true,
+    });
+  } else {
+    chrome.sidePanel.setOptions({ tabId, enabled: false });
+  }
 });
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
@@ -205,6 +361,25 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
  * Handles the installation of the extension.
  */
 async function handleInstall() {
+  chrome.storage.local.set({
+    recording_state: RecordingStates.ENDED,
+  });
+
+  console.log("####################");
+  console.log("[handleINstall] SETTING CUR MEETING URL");
+  console.log("####################");
+
+  chrome.storage.local.set(
+    {
+      cur_meeting_url: "",
+    },
+    () => {
+      console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+      console.log("[handleINstall]  cur_meeting_url");
+      console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+    }
+  );
+
   console.log("Extension installed...");
   if (!(await hasDocument())) {
     // create offscreen document
@@ -242,6 +417,13 @@ function initateRecordingStop() {
   console.log("Recording stopped at offscreen");
   sendMessageToOffscreenDocument("STOP_OFFSCREEN_RECORDING");
 
+  // chrome.runtime.sendMessage({
+  //   message: {
+  //     type: "HANDLE_END_MEETING",
+  //     target: "sidepanel",
+  //   },
+  // });
+
   chrome.storage.local.set({
     recording_state: RecordingStates.ENDED,
   });
@@ -254,7 +436,9 @@ function initateRecordingStop() {
   });
 }
 
-chrome.notifications.onClicked.addListener(async () => {
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+  console.log("NOTIFICATION CLICKED: ", notificationId);
+
   chrome.tabs.create({ url: HALLYDAY_WEBAPP, active: true });
 });
 
@@ -301,6 +485,27 @@ function initateRecordingStart() {
                 chrome.storage.local.set({
                   recording_state: RecordingStates.IN_PROGRESS,
                 });
+
+                const url = new URL(tab.url);
+                const meeting_url = url.origin + url.pathname;
+
+                console.log("####################");
+                console.log(
+                  "[initateRecordingStart] SETTING CUR MEETING URL: ",
+                  meeting_url
+                );
+                console.log("####################");
+
+                chrome.storage.local.set(
+                  {
+                    cur_meeting_url: meeting_url,
+                  },
+                  () => {
+                    console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+                    console.log("[initateRecordingStart]  cur_meeting_url");
+                    console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+                  }
+                );
               }
             );
           }

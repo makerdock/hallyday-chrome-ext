@@ -1,3 +1,6 @@
+// import { RecordingStates } from "utils/recordingState";
+import { RecordingStates } from "../../../utils/recordingState";
+
 const Offscreen = () => {
   /**
    * MediaRecorder instance for audio recording.
@@ -151,6 +154,8 @@ const Offscreen = () => {
             client_socket.onmessage = async (msg) => {
               console.log("JSON.parse(msg.data): ", JSON.parse(msg.data));
 
+              if (JSON.parse(msg.data).type !== "Results") return;
+
               const { transcript } = JSON.parse(msg.data).channel
                 .alternatives[0];
 
@@ -198,19 +203,16 @@ const Offscreen = () => {
                   data.aiResponseContent.length > 0 &&
                   data.aiResponseContent !== '""'
                 ) {
+                  // Reset the old data
+                  old_transcript = "";
+
                   chrome.runtime.sendMessage({
                     message: {
                       type: "CLIENT_TRANSCRIPT_CONTEXT",
                       target: "sidepanel",
-                      data: {
-                        aiInsight: data.aiResponseContent,
-                        messageText: old_transcript,
-                      },
+                      data: data.aiResponseContent,
                     },
                   });
-
-                  // Reset the old data
-                  old_transcript = "";
                 } else {
                   // Set the old transcript so that it can be appended with the next api call
                   // old_transcript = old_transcript + " " + transcript;
@@ -242,7 +244,7 @@ const Offscreen = () => {
               }
             };
 
-            // let debounceTimer: NodeJS.Timeout | null = null; // Variable to store debounce timer
+            let debounceTimer: NodeJS.Timeout | null = null; // Variable to store debounce timer
 
             // client_mediaRecorder.ondataavailable = (event) => {
             //   console.log("on client data...", event.data);
@@ -261,29 +263,101 @@ const Offscreen = () => {
 
             const client_data = [];
 
+            // client_mediaRecorder.ondataavailable = (event) => {
+            //   if (event.data.size > 0 && client_socket.readyState == 1) {
+            //     // client_socket.send(event.data);
+            //     client_data.push(event.data);
+
+            //     console.log("[on data] event.data: ", event.data);
+            //   }
+            // };
+
             client_mediaRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0 && client_socket.readyState == 1) {
-                // client_socket.send(event.data);
+              console.log("===============================");
+              console.log("on client data...", event.data);
+
+              if (event.data.size > 0 && client_socket.readyState == 1)
                 client_data.push(event.data);
 
-                console.log("[on data] event.data: ", event.data);
+              // -----------------
+
+              if (event.data.size > 300) {
+                console.log("@@ > 300 @@");
+
+                if (debounceTimer) {
+                  clearTimeout(debounceTimer);
+                  console.log("clearing time out...");
+                }
+              } else {
+                console.log("@@ < 300 @@");
+
+                debounceTimer = setTimeout(() => {
+                  console.log("SENDING CLIENT DATA....", client_data);
+                }, 2000);
+
+                console.log("after set timeout...");
               }
+
+              // -----------------
+
+              console.log("client_data: ", client_data);
+
+              // if (debounceTimer) {
+              //   clearTimeout(debounceTimer);
+              //   console.log("clearing time out...");
+              // }
+
+              // debounceTimer = setTimeout(() => {
+              //   console.log("SENDING CLIENT DATA....", client_data);
+
+              //   client_data.splice(0, client_data.length);
+
+              //   // client_socket.send(
+              //   //   new Blob(client_data.splice(0, client_data.length))
+              //   // );
+              // }, 2000);
+
+              // console.log("after set timeout...");
             };
 
-            // https://stackoverflow.com/a/51355276
-            setInterval(() => {
-              if (client_data.length > 0) {
-                console.log("<-- SENDING DATA -->");
-                client_socket.send(
-                  new Blob(client_data.splice(0, client_data.length))
-                );
-              }
-            }, 5000);
+            // client_mediaRecorder.onstop = (event) => {
+            //   console.log("<=== CLIENT MEDIA RECORDER STOPPED ===>");
+
+            //   chrome.runtime.sendMessage({
+            //     message: {
+            //       type: "UPDATE_RECORDING_STATE",
+            //       target: "background",
+            //       data: RecordingStates.ENDED,
+            //     },
+            //   });
+            // };
+
+            // // https://stackoverflow.com/a/51355276
+            // setInterval(() => {
+            //   if (client_data.length > 0) {
+            //     console.log("<-- SENDING DATA -->");
+            //     client_socket.send(
+            //       new Blob(client_data.splice(0, client_data.length))
+            //     );
+            //   }
+            // }, 5000);
 
             rep_mediaRecorder.ondataavailable = (event) => {
               if (event.data.size > 0 && rep_socket.readyState == 1)
                 rep_socket.send(event.data);
             };
+
+            // rep_mediaRecorder.onstop = (event) => {
+            //   console.log("<=== REP MEDIA RECORDER STOPPED ===>");
+
+            //   chrome.runtime.sendMessage({
+            //     message: {
+            //       type: "UPDATE_RECORDING_STATE",
+            //       target: "background",
+            //       data: RecordingStates.ENDED,
+            //     },
+            //   });
+            // };
 
             console.log("Started recording in offscreen...");
           } catch (error) {
