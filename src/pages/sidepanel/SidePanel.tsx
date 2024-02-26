@@ -191,7 +191,8 @@ const SidePanel = () => {
 
     console.log("[handleEndMeeting] error: ", error);
 
-    const { start_time } = data;
+
+    const start_time = data?.start_time || new Date().toISOString();
     const start_time_date: Date = new Date(start_time);
     const end_time: Date = new Date();
     const duration_in_sec =

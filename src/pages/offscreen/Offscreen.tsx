@@ -151,10 +151,18 @@ const Offscreen = () => {
             client_socket.onmessage = async (msg) => {
               console.log("JSON.parse(msg.data): ", JSON.parse(msg.data));
 
-              const { transcript } = JSON.parse(msg.data).channel
-                .alternatives[0];
+              let messageData;
+              try {
+                messageData = JSON.parse(msg.data)
+              } catch (error) {
+                console.log("Error parsing msg.data: ", msg.data)
+                console.error(error)
+              }
+
+              const transcript = messageData?.channel.alternatives[0];
 
               if (transcript) {
+                console.log("🚀 ~ client_socket.onmessage= ~ transcript:", transcript)
                 console.log("---> old_transcript: ", old_transcript);
                 console.log(
                   "\x1b[31m[CLIENT] transcript ->",
@@ -180,18 +188,26 @@ const Offscreen = () => {
                 //   },
                 // });
 
-                const response = await fetch(
-                  "https://hallyday-dashboard.vercel.app/api/ai/reply",
-                  {
-                    method: "POST",
-                    body: JSON.stringify({
-                      transcription: old_transcript,
-                    }),
-                  }
-                );
+                // get the last 100 words from the old_transcript
+                const transcriptionWithThreshold = old_transcript.split(" ").slice(-100).join(" ");
 
-                const data = await response.json();
-                console.log("data: ", data);
+
+                let data;
+                try {
+                  const response = await fetch(
+                    "https://hallyday-dashboard.vercel.app/api/ai/reply",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        transcription: transcriptionWithThreshold,
+                      }),
+                    }
+                  );
+
+                  data = await response.json();
+                } catch (error) {
+                  console.error(error)
+                }
 
                 if (
                   data.aiResponseContent &&
