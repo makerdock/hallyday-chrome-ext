@@ -9,8 +9,10 @@ import {
   isSameTab,
   getTokens,
   Tokens,
-  isRecordingInProgress,
 } from "../../../utils/recorderUtils";
+
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const SidePanel = () => {
   interface MeetingUrl {
@@ -30,16 +32,28 @@ const SidePanel = () => {
   const RECORDING = "Recording...";
   const NOT_RECORDING = "Not Recording";
 
-  const [msgs, setMsgs] = useState([]);
-  const [recordingState, setRecordingState] = useState("");
+  const DEFAULT_LISTENING_MSG = "Listening to the client...";
+  const FAILED_LISTENING_MSG = "Couldn't determine the context :( Try again";
+
+  // const [msgs, setMsgs] = useState([]);
+  const [recordingState, setRecordingState] = useState(NOT_RECORDING);
   const [loggedIn, setLoggedIn] = useState(false);
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient>();
   const [transcription, setTranscription] = useState<Message[]>([]);
 
+  const [showWelcomeMsg, setShowWelcomeMsg] = useState<boolean>(true);
+
+  const [showListeningMsg, setShowListeningMsg] = useState<boolean>(false);
+  const [listeningMsg, setListeningMsg] = useState<string>(
+    DEFAULT_LISTENING_MSG
+  );
+
+  const showListeningMsgRef = useRef<boolean>(null);
+
   const supabaseClientRef = useRef<SupabaseClient>(null);
 
   useEffect(() => {
-    console.log("=> msgs: ", msgs);
+    console.log("=> transcription: ", transcription);
 
     if (scrollRef.current) {
       scrollRef.current?.scrollTo({
@@ -47,12 +61,46 @@ const SidePanel = () => {
         behavior: "smooth",
       });
     }
-  }, [msgs]);
+  }, [transcription]);
+
+  useEffect(() => {
+    console.log(
+      "[UE - transcription, recordingState]: ",
+      transcription,
+      recordingState
+    );
+
+    console.log(
+      "[UE - transcription, recordingState]: ",
+      transcription.length === 0,
+      NOT_RECORDING === recordingState
+    );
+
+    if (transcription.length === 0 && NOT_RECORDING === recordingState) {
+      console.log("### SHOW WELCOME MSG ###");
+      setShowWelcomeMsg(true);
+      setShowListeningMsg(false);
+    } else {
+      setShowWelcomeMsg(false);
+      setShowListeningMsg(true);
+    }
+  }, [transcription, recordingState]);
+
+  useEffect(() => {
+    console.log("===> [UE - showListeningMsg]: ", showListeningMsg);
+    showListeningMsgRef.current = showListeningMsg;
+  }, [showListeningMsg]);
 
   async function updateRecordingState(recordingState) {
-    console.log("[UPDATE STATE] recordingState: ", recordingState);
+    const isSame = await isSameTab();
+    console.log(
+      "[UPDATE STATE] recordingState: ",
+      recordingState,
+      " - isSame: ",
+      isSame
+    );
 
-    if (recordingState === RecordingStates.IN_PROGRESS && (await isSameTab())) {
+    if (recordingState === RecordingStates.IN_PROGRESS && isSame) {
       setRecordingState(RECORDING);
     } else {
       setRecordingState(NOT_RECORDING);
@@ -64,11 +112,11 @@ const SidePanel = () => {
   }
 
   useEffect(() => {
-    console.log(
-      "[UE] supabaseClient, recordingState: ",
-      supabaseClient,
-      recordingState
-    );
+    // console.log(
+    //   "[UE] supabaseClient, recordingState: ",
+    //   supabaseClient,
+    //   recordingState
+    // );
 
     if (RECORDING === recordingState && supabaseClient) updateMeetingInfo();
     else if (NOT_RECORDING === recordingState && supabaseClient)
@@ -76,11 +124,11 @@ const SidePanel = () => {
   }, [supabaseClient, recordingState]);
 
   useEffect(() => {
-    console.log(
-      "[UE] supabaseClient, transcription: ",
-      supabaseClient,
-      transcription
-    );
+    // console.log(
+    //   "[UE] supabaseClient, transcription: ",
+    //   supabaseClient,
+    //   transcription
+    // );
 
     if (transcription && supabaseClient) {
       console.log("<--- SHOULD UPDATE TRANSCRIPTION --->");
@@ -191,7 +239,6 @@ const SidePanel = () => {
 
     console.log("[handleEndMeeting] error: ", error);
 
-
     const start_time = data?.start_time || new Date().toISOString();
     const start_time_date: Date = new Date(start_time);
     const end_time: Date = new Date();
@@ -270,8 +317,21 @@ const SidePanel = () => {
           {
             const { aiInsight, messageText } = request.message.data;
 
-            if (aiInsight && aiInsight.length > 0)
-              setMsgs((prev) => [...prev, aiInsight]);
+            if (!aiInsight && !messageText) {
+              setListeningMsg(FAILED_LISTENING_MSG);
+
+              const interval = setInterval(() => {
+                console.log("Setting default msg after 2 secs");
+                setListeningMsg(DEFAULT_LISTENING_MSG);
+
+                clearInterval(interval);
+              }, 2000);
+
+              return;
+            }
+
+            // if (aiInsight && aiInsight.length > 0)
+            //   setMsgs((prev) => [...prev, aiInsight]);
 
             const message: Message = {
               speakerType: SpeakerType.CLIENT,
@@ -289,6 +349,26 @@ const SidePanel = () => {
 
               return updatedTranscription;
             });
+
+            setListeningMsg(DEFAULT_LISTENING_MSG);
+          }
+          break;
+
+        case "CLIENT_TRANSCRIPT":
+          {
+            console.log(
+              "[CLIENT_TRANSCRIPT] showListeningMsg: ",
+              showListeningMsg,
+              showListeningMsgRef.current
+            );
+
+            if (showListeningMsgRef.current) {
+              console.log(
+                "[CLIENT_TRANSCRIPT] request.message.data: ",
+                request.message.data
+              );
+              setListeningMsg(request.message.data);
+            }
           }
           break;
 
@@ -335,23 +415,74 @@ const SidePanel = () => {
   return (
     <div className="h-full">
       {loggedIn ? (
-        <div className="h-full pb-8">
+        <div className="h-full flex flex-col">
           <div className="flex items-center justify-between p-4 bg-gray-300">
             <h2>Hallyday AI</h2>
             <p>{recordingState}</p>
           </div>
-          <div className="overflow-auto h-full p-4" ref={scrollRef}>
-            {transcription.map(({ aiInsight }, index) => {
-              return (
-                <p
-                  className="bg-white rounded-md mb-4 p-2 shadow-lg min-h-[80px]"
-                  key={index}
-                >
-                  {aiInsight}
-                </p>
-              );
-            })}
+
+          <div className="flex-grow">
+            {showListeningMsg && (
+              <div className="p-4 bg-gray-300 m-4 mb-0 relative">
+                <span>{listeningMsg}</span>
+                <span className="animate-ping absolute top-0 right-0 h-[10px] w-[10px] rounded-full bg-red-800 opacity-95"></span>
+              </div>
+            )}
+
+            <div className="overflow-auto p-4" ref={scrollRef}>
+              {transcription.map(({ aiInsight }, index) => {
+                return (
+                  <p
+                    className="bg-white rounded-md mb-4 p-2 shadow-lg min-h-[80px]"
+                    key={index}
+                  >
+                    <Markdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        ul: ({ node, ...props }) => (
+                          <ol
+                            style={{
+                              padding: "10px 20px",
+                            }}
+                            {...props}
+                          ></ol>
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol
+                            style={{
+                              padding: "10px 20px",
+                            }}
+                            {...props}
+                          ></ol>
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li
+                            style={{
+                              marginBottom: "10px",
+                              listStyle: "auto",
+                            }}
+                            {...props}
+                          ></li>
+                        ),
+                        a: ({ node, ...props }) => (
+                          <a style={{ color: "blue" }} {...props}></a>
+                        ),
+                      }}
+                    >
+                      {aiInsight}
+                    </Markdown>
+                  </p>
+                );
+              })}
+            </div>
           </div>
+
+          {showWelcomeMsg && (
+            <div className="p-4 bg-gray-300 m-4 absolute top-[50px]">
+              Welcome to Hallyday AI assitant. Click the extension icon to
+              &apos;start recording&apos; and let AI to take care of the rest !
+            </div>
+          )}
         </div>
       ) : (
         <div className="w-full flex mt-4">

@@ -210,7 +210,7 @@ chrome.runtime.onMessage.addListener((request) => {
 async function login() {
   // Store the current tab id
   const tabs = await chrome.tabs.query({ active: true });
-  console.log("[TAB ACTIVATED QUERY] tabs: ", tabs[0]);
+  console.log("[LOGIN - TAB QUERY] tabs: ", tabs[0]);
 
   await chrome.storage.local.set({
     current_tab: tabs[0].id,
@@ -236,7 +236,7 @@ const setTokens = async (
   if (tab.status === "complete") {
     if (!tab.url) return;
 
-    console.log("<--TAB LOAD COMPLETE -->", tab.url);
+    // console.log("<--TAB LOAD COMPLETE -->", tab.url);
 
     const url = new URL(tab.url);
 
@@ -249,7 +249,7 @@ const setTokens = async (
       if (accessToken && refreshToken) {
         if (!tab.id) return;
 
-        console.log("--> tokens: ", accessToken, refreshToken);
+        // console.log("--> tokens: ", accessToken, refreshToken);
 
         // we can close that tab now
         await chrome.tabs.remove(tab.id);
@@ -346,7 +346,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   // console.log("[TAB ACTIVATED] resp: ", resp);
 
   const tabs = await chrome.tabs.query({ active: true });
-  console.log("[TAB ACTIVATED QUERY] tabs: ", tabs[0]);
+  // console.log("[TAB ACTIVATED QUERY] tabs: ", tabs[0]);
 
   if (!tabs[0].url) return;
 
@@ -467,7 +467,7 @@ function initateRecordingStart() {
 
           // If user allows the mic permissions, we continue the recording procedure.
           if (response.message.status === "success") {
-            console.log("Recording started at offscreen");
+            console.log("Recording started at offscreen.....", tab.id);
 
             // Get a MediaStream for the active tab.
             chrome.tabCapture.getMediaStreamId(
@@ -475,7 +475,7 @@ function initateRecordingStart() {
                 targetTabId: tab.id,
               },
               (streamId) => {
-                console.log("STREAM ID: ", streamId);
+                console.log("1 STREAM ID: ", streamId);
 
                 sendMessageToOffscreenDocument(
                   "START_OFFSCREEN_RECORDING",
@@ -506,6 +506,13 @@ function initateRecordingStart() {
                     console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
                   }
                 );
+              }
+            );
+
+            chrome.tabCapture.getMediaStreamId(
+              { targetTabId: tab.id },
+              (streamId) => {
+                console.log("2 STREAM ID: ", streamId);
               }
             );
           }

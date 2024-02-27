@@ -12,6 +12,10 @@ const Offscreen = () => {
   let rep_socket;
   const apiKey = "bd7d01faf4086045f8f1e7ff4f0c06983d608352";
 
+  let source: MediaStreamAudioSourceNode;
+  let audioCtx: AudioContext;
+  let media: MediaStream;
+
   /**
    * Event listener for messages from the extension.
    * @param {Object} request - The message request.
@@ -65,32 +69,18 @@ const Offscreen = () => {
       // handleStopRecording();
       client_mediaRecorder.stop();
       rep_mediaRecorder.stop();
+
+      source.disconnect(audioCtx.destination);
+      audioCtx.close();
+      media.getAudioTracks()[0].stop();
     }
   }
 
   async function handleRecording(streamId) {
-    // chrome.runtime.sendMessage({
-    //   message: {
-    //     type: "SHOW_SIDEPANEL",
-    //     target: "background",
-    //   },
-    // });
-
     getAudioInputDevices().then((audioInputDevices) => {
       const deviceId = audioInputDevices[0].deviceId;
 
       console.log("DEVICE ID: ", deviceId);
-
-      // navigator.mediaDevices.enumerateDevices().then((devices) => {
-      //   // Filter the devices to include only audio input devices
-      //   // const audioInputDevices = devices.filter(
-      //   //   (device) => device.kind === "audioinput"
-      //   // );
-
-      //   devices.forEach((device) => {
-      //     console.log("--> device: ", device);
-      //   });
-      // });
 
       navigator.mediaDevices
         .getUserMedia({
@@ -102,7 +92,9 @@ const Offscreen = () => {
           console.log("AUDIO STREAM: ", audioStream);
 
           try {
-            const media = await navigator.mediaDevices.getUserMedia({
+            console.log("--------> Befre getUserMedia <--------", streamId);
+
+            media = await navigator.mediaDevices.getUserMedia({
               audio: {
                 mandatory: {
                   chromeMediaSource: "tab",
@@ -114,9 +106,9 @@ const Offscreen = () => {
             console.log("MEDIA: ", media);
 
             // Continue to play the captured audio to the user.
-            const output = new AudioContext();
-            const source = output.createMediaStreamSource(media);
-            source.connect(output.destination);
+            audioCtx = new AudioContext();
+            source = audioCtx.createMediaStreamSource(media);
+            source.connect(audioCtx.destination);
 
             console.log("audioStream.getTracks(): ", audioStream.getTracks());
 
@@ -149,20 +141,14 @@ const Offscreen = () => {
             };
 
             client_socket.onmessage = async (msg) => {
+              if (JSON.parse(msg.data).type !== "Results") return;
+
               console.log("JSON.parse(msg.data): ", JSON.parse(msg.data));
 
-              let messageData;
-              try {
-                messageData = JSON.parse(msg.data)
-              } catch (error) {
-                console.log("Error parsing msg.data: ", msg.data)
-                console.error(error)
-              }
-
-              const transcript = messageData?.channel.alternatives[0];
+              const { transcript } = JSON.parse(msg.data).channel
+                .alternatives[0];
 
               if (transcript) {
-                console.log("🚀 ~ client_socket.onmessage= ~ transcript:", transcript)
                 console.log("---> old_transcript: ", old_transcript);
                 console.log(
                   "\x1b[31m[CLIENT] transcript ->",
@@ -180,17 +166,19 @@ const Offscreen = () => {
                   "\x1b"
                 );
 
-                // chrome.runtime.sendMessage({
-                //   message: {
-                //     type: "CLIENT_TRANSCRIPT",
-                //     target: "sidepanel",
-                //     data: transcript,
-                //   },
-                // });
-
                 // get the last 100 words from the old_transcript
-                const transcriptionWithThreshold = old_transcript.split(" ").slice(-100).join(" ");
+                const transcriptionWithThreshold = old_transcript
+                  .split(" ")
+                  .slice(-100)
+                  .join(" ");
 
+                chrome.runtime.sendMessage({
+                  message: {
+                    type: "CLIENT_TRANSCRIPT",
+                    target: "sidepanel",
+                    data: transcriptionWithThreshold,
+                  },
+                });
 
                 let data;
                 try {
@@ -206,7 +194,7 @@ const Offscreen = () => {
 
                   data = await response.json();
                 } catch (error) {
-                  console.error(error)
+                  console.error(error);
                 }
 
                 if (
@@ -236,6 +224,17 @@ const Offscreen = () => {
                     old_transcript,
                     "\x1b"
                   );
+
+                  chrome.runtime.sendMessage({
+                    message: {
+                      type: "CLIENT_TRANSCRIPT_CONTEXT",
+                      target: "sidepanel",
+                      data: {
+                        aiInsight: "",
+                        messageText: "",
+                      },
+                    },
+                  });
                 }
               }
             };
@@ -247,33 +246,8 @@ const Offscreen = () => {
                 .alternatives[0];
               if (transcript) {
                 console.log("\x1b[32m[REP] transcript ->", transcript, "\x1b");
-
-                // chrome.runtime.sendMessage({
-                //   message: {
-                //     type: "REP_TRANSCRIPT",
-                //     target: "sidepanel",
-                //     data: transcript,
-                //   },
-                // });
               }
             };
-
-            // let debounceTimer: NodeJS.Timeout | null = null; // Variable to store debounce timer
-
-            // client_mediaRecorder.ondataavailable = (event) => {
-            //   console.log("on client data...", event.data);
-
-            //   if (debounceTimer) {
-            //     clearTimeout(debounceTimer);
-            //   }
-
-            //   debounceTimer = setTimeout(() => {
-            //     console.log("SENDING CLIENT DATA....");
-
-            //     if (event.data.size > 0 && client_socket.readyState == 1)
-            //       client_socket.send(event.data);
-            //   }, 2000);
-            // };
 
             const client_data = [];
 
@@ -313,39 +287,6 @@ const Offscreen = () => {
   }
 
   // https://github.com/deepgram-devs/transcription-chrome-extension/blob/37d34f4b0b2a38ef10ced0f9c02d794dae961407/mic-and-tab/content-script.js#L47
-
-  // https://stackoverflow.com/a/47071576
-  function mix(audioContext, streams) {
-    const dest = audioContext.createMediaStreamDestination();
-    streams.forEach((stream) => {
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(dest);
-    });
-    return dest.stream;
-  }
-
-  /**
-   * Saves audio chunks captured by MediaRecorder.
-   * @param {Blob[]} chunkData - Array of audio chunks in Blob format.
-   */
-  function saveAudioChunks(chunkData) {
-    console.log("Chunk captured from MediaRecorder");
-    // Manage audio chunks accordingly as per your needs
-    data.push(chunkData);
-  }
-
-  /**
-   * Event handler for when MediaRecorder is stopped.
-   */
-  function handleStopRecording() {
-    // Handle cases when MediaRecorder is stopped if needed
-    console.log("<--- Inside handleStopRecording --->", data);
-
-    const blob = new Blob(data, { type: "video/webm" });
-    window.open(URL.createObjectURL(blob), "_blank");
-
-    data = [];
-  }
 
   /**
    * Fetches audio input devices using the `navigator.mediaDevices.enumerateDevices` API.
