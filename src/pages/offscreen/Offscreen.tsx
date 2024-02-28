@@ -48,6 +48,10 @@ const Offscreen = () => {
           .then((data) => sendResponse(data))
           .catch((errorData) => sendResponse(errorData));
         break;
+      case "TRANSCRIPTION_USER_INPUT":
+        handleTranscription(request.message.data);
+        sendResponse({});
+        break;
       default:
         break;
     }
@@ -180,62 +184,65 @@ const Offscreen = () => {
                   },
                 });
 
-                let data;
-                try {
-                  const response = await fetch(
-                    "https://hallyday-dashboard.vercel.app/api/ai/reply",
-                    {
-                      method: "POST",
-                      body: JSON.stringify({
-                        transcription: transcriptionWithThreshold,
-                      }),
-                    }
-                  );
+                handleTranscription(transcriptionWithThreshold);
 
-                  data = await response.json();
-                } catch (error) {
-                  console.error(error);
-                }
+                // let data;
+                // try {
+                //   const response = await fetch(
+                //     "https://hallyday-dashboard.vercel.app/api/ai/reply",
+                //     {
+                //       method: "POST",
+                //       body: JSON.stringify({
+                //         transcription: transcriptionWithThreshold,
+                //       }),
+                //     }
+                //   );
 
-                if (
-                  data.aiResponseContent &&
-                  data.aiResponseContent.length > 0 &&
-                  data.aiResponseContent !== '""'
-                ) {
-                  chrome.runtime.sendMessage({
-                    message: {
-                      type: "CLIENT_TRANSCRIPT_CONTEXT",
-                      target: "sidepanel",
-                      data: {
-                        aiInsight: data.aiResponseContent,
-                        messageText: old_transcript,
-                      },
-                    },
-                  });
+                //   data = await response.json();
+                // } catch (error) {
+                //   console.error(error);
+                // }
 
-                  // Reset the old data
-                  old_transcript = "";
-                } else {
-                  // Set the old transcript so that it can be appended with the next api call
-                  // old_transcript = old_transcript + " " + transcript;
+                // if (
+                //   data.aiResponseContent &&
+                //   data.aiResponseContent.length > 0 &&
+                //   data.aiResponseContent !== '""'
+                // ) {
+                //   chrome.runtime.sendMessage({
+                //     message: {
+                //       type: "CLIENT_TRANSCRIPT_CONTEXT",
+                //       target: "sidepanel",
+                //       data: {
+                //         aiInsight: data.aiResponseContent,
+                //         // messageText: old_transcript,
+                //         messageText: transcriptionWithThreshold,
+                //       },
+                //     },
+                //   });
 
-                  console.log(
-                    "\x1b[33m[OLD TRANSCRIPT] transcript ->",
-                    old_transcript,
-                    "\x1b"
-                  );
+                //   // Reset the old data
+                //   old_transcript = "";
+                // } else {
+                //   // Set the old transcript so that it can be appended with the next api call
+                //   // old_transcript = old_transcript + " " + transcript;
 
-                  chrome.runtime.sendMessage({
-                    message: {
-                      type: "CLIENT_TRANSCRIPT_CONTEXT",
-                      target: "sidepanel",
-                      data: {
-                        aiInsight: "",
-                        messageText: "",
-                      },
-                    },
-                  });
-                }
+                //   console.log(
+                //     "\x1b[33m[OLD TRANSCRIPT] transcript ->",
+                //     old_transcript,
+                //     "\x1b"
+                //   );
+
+                //   chrome.runtime.sendMessage({
+                //     message: {
+                //       type: "CLIENT_TRANSCRIPT_CONTEXT",
+                //       target: "sidepanel",
+                //       data: {
+                //         aiInsight: "",
+                //         messageText: "",
+                //       },
+                //     },
+                //   });
+                // }
               }
             };
 
@@ -284,6 +291,66 @@ const Offscreen = () => {
           }
         });
     });
+  }
+
+  async function handleTranscription(transcription) {
+    let data;
+    try {
+      const response = await fetch(
+        "https://hallyday-dashboard.vercel.app/api/ai/reply",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            transcription,
+          }),
+        }
+      );
+
+      data = await response.json();
+    } catch (error) {
+      console.error(error);
+    }
+
+    if (
+      data.aiResponseContent &&
+      data.aiResponseContent.length > 0 &&
+      data.aiResponseContent !== '""'
+    ) {
+      chrome.runtime.sendMessage({
+        message: {
+          type: "CLIENT_TRANSCRIPT_CONTEXT",
+          target: "sidepanel",
+          data: {
+            aiInsight: data.aiResponseContent,
+            // messageText: old_transcript,
+            messageText: transcription,
+          },
+        },
+      });
+
+      // Reset the old data
+      old_transcript = "";
+    } else {
+      // Set the old transcript so that it can be appended with the next api call
+      // old_transcript = old_transcript + " " + transcript;
+
+      console.log(
+        "\x1b[33m[OLD TRANSCRIPT] transcript ->",
+        old_transcript,
+        "\x1b"
+      );
+
+      chrome.runtime.sendMessage({
+        message: {
+          type: "CLIENT_TRANSCRIPT_CONTEXT",
+          target: "sidepanel",
+          data: {
+            aiInsight: "",
+            messageText: "",
+          },
+        },
+      });
+    }
   }
 
   // https://github.com/deepgram-devs/transcription-chrome-extension/blob/37d34f4b0b2a38ef10ced0f9c02d794dae961407/mic-and-tab/content-script.js#L47

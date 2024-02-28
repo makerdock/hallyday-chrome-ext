@@ -1,12 +1,14 @@
 import {
+  Tokens,
   areTokensSet,
+  getTokens,
   isRecordingInProgress,
   isSameTab,
 } from "../../../utils/recorderUtils";
 // import { Tokens, getTokens } from "../../../utils/getTokens";
 import { RecordingStates } from "../../../utils/recordingState";
 
-// import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 // import { createRequire } from "module";
 // const require = createRequire(import.meta.url);
 
@@ -17,6 +19,25 @@ import { RecordingStates } from "../../../utils/recordingState";
  * @type {string}
  */
 const OFFSCREEN_DOCUMENT_PATH = "src/pages/offscreen/index.html";
+
+const _supabase = createClient(
+  "https://fhkdrjttwyipealchxne.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoa2RyanR0d3lpcGVhbGNoeG5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDgwODgyNDIsImV4cCI6MjAyMzY2NDI0Mn0.YMSvBR5BXRV1lfXI5j_z-Gd6v0cZNojONjf3YHTiHNY"
+);
+console.log("SUPABASE: ", _supabase);
+
+getUserId();
+
+async function getUserId() {
+  const { accessToken, refreshToken } = (await getTokens()) as Tokens;
+
+  const resp = await _supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  console.log("SUPABASE DATA: ", resp);
+}
 
 /**
  * Reason for creating the offscreen document.

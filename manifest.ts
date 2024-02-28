@@ -40,6 +40,7 @@ const manifest: chrome.runtime.ManifestV3 = {
   web_accessible_resources: [
     {
       resources: [
+        "assets/js/*.js",
         "requestPermissions.html",
         "requestPermissions.js",
         "supabase.js",

@@ -1,7 +1,12 @@
 import Chrome from "chrome";
+import { createClient } from "@supabase/supabase-js";
 
 declare namespace chrome {
   export default Chrome;
+}
+
+declare namespace createSupaClient {
+  export default createClient;
 }
 
 declare module "virtual:reload-on-update-in-background-script" {

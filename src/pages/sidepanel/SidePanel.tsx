@@ -14,6 +14,10 @@ import {
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import clsx from "clsx";
+
+import { isDesktop } from "react-device-detect";
+
 const SidePanel = () => {
   interface MeetingUrl {
     cur_meeting_url: string;
@@ -39,7 +43,32 @@ const SidePanel = () => {
   const [recordingState, setRecordingState] = useState(NOT_RECORDING);
   const [loggedIn, setLoggedIn] = useState(false);
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient>();
-  const [transcription, setTranscription] = useState<Message[]>([]);
+  const [transcription, setTranscription] = useState<Message[]>([
+    // {
+    //   aiInsight:
+    //     "**ShipFast** supports an array of components including a **FAQ** component and **UI-only components** like buttons and inputs as external libraries. More details can be found on the provided link below. \n\n[https://shipfa.st/docs/components/faq](https://shipfa.st/docs/components/faq)",
+    //   timestamp: "2024-02-27T15:25:32.885Z",
+    //   messageText:
+    //     "what are the different components supported in and ship first",
+    //   speakerType: "client",
+    // },
+    // {
+    //   aiInsight:
+    //     "**ShipFast** supports an array of components including a **FAQ** component and **UI-only components** like buttons and inputs as external libraries. More details can be found on the provided link below. \n\n[https://shipfa.st/docs/components/faq](https://shipfa.st/docs/components/faq)",
+    //   timestamp: "2024-02-27T15:25:32.885Z",
+    //   messageText:
+    //     "what are the different components supported in and ship first",
+    //   speakerType: "client",
+    // },
+    // {
+    //   aiInsight:
+    //     "**ShipFast** supports an array of components including a **FAQ** component and **UI-only components** like buttons and inputs as external libraries. More details can be found on the provided link below. \n\n[https://shipfa.st/docs/components/faq](https://shipfa.st/docs/components/faq)",
+    //   timestamp: "2024-02-27T15:25:32.885Z",
+    //   messageText:
+    //     "what are the different components supported in and ship first",
+    //   speakerType: "client",
+    // },
+  ]);
 
   const [showWelcomeMsg, setShowWelcomeMsg] = useState<boolean>(true);
 
@@ -48,9 +77,13 @@ const SidePanel = () => {
     DEFAULT_LISTENING_MSG
   );
 
+  const [query, setQuery] = useState<string>("");
+
   const showListeningMsgRef = useRef<boolean>(null);
 
   const supabaseClientRef = useRef<SupabaseClient>(null);
+
+  const sidepanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     console.log("=> transcription: ", transcription);
@@ -167,6 +200,30 @@ const SidePanel = () => {
 
     handleTokens();
     populateExistingTranscripts();
+
+    console.log("===> window.innerWidth: ", window.innerWidth);
+    console.log("===> window.innerHeight: ", window.innerHeight);
+
+    console.log("===> document.innerWidth: ", document.body.clientWidth);
+    console.log("===> document.innerHeight: ", document.body.clientHeight);
+
+    console.log(
+      "===> sidepanelRef.current.innerWidth: ",
+      sidepanelRef.current.clientWidth
+    );
+    console.log(
+      "===> sidepanelRef.current.innerHeight: ",
+      sidepanelRef.current.clientHeight
+    );
+
+    console.log(
+      "document width: ",
+      document.querySelector("#sidepanel").clientWidth
+    );
+    console.log(
+      "document height: ",
+      document.querySelector("#sidepanel").clientHeight
+    );
   }, []);
 
   useEffect(() => {
@@ -412,8 +469,20 @@ const SidePanel = () => {
     });
   }
 
+  function handleClick() {
+    setListeningMsg(query);
+
+    chrome.runtime.sendMessage({
+      message: {
+        type: "TRANSCRIPTION_USER_INPUT",
+        target: "offscreen",
+        data: query,
+      },
+    });
+  }
+
   return (
-    <div className="h-full">
+    <div className="h-full" ref={sidepanelRef} id="sidepanel">
       {loggedIn ? (
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between p-4 bg-gray-300">
@@ -421,7 +490,7 @@ const SidePanel = () => {
             <p>{recordingState}</p>
           </div>
 
-          <div className="flex-grow">
+          <div className="h-full flex flex-col">
             {showListeningMsg && (
               <div className="p-4 bg-gray-300 m-4 mb-0 relative">
                 <span>{listeningMsg}</span>
@@ -429,7 +498,13 @@ const SidePanel = () => {
               </div>
             )}
 
-            <div className="overflow-auto p-4" ref={scrollRef}>
+            <div
+              className={clsx(
+                "overflow-auto flex-grow p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#474848]",
+                window.innerHeight > 700 ? "max-h-[1052px]" : "max-h-[442px]"
+              )}
+              ref={scrollRef}
+            >
               {transcription.map(({ aiInsight }, index) => {
                 return (
                   <p
@@ -440,12 +515,12 @@ const SidePanel = () => {
                       remarkPlugins={[remarkGfm]}
                       components={{
                         ul: ({ node, ...props }) => (
-                          <ol
+                          <ul
                             style={{
                               padding: "10px 20px",
                             }}
                             {...props}
-                          ></ol>
+                          ></ul>
                         ),
                         ol: ({ node, ...props }) => (
                           <ol
@@ -475,6 +550,25 @@ const SidePanel = () => {
                 );
               })}
             </div>
+
+            {showListeningMsg && (
+              <div className="w-full p-4">
+                <input
+                  type="text"
+                  className="input w-full p-4 bg-[#F3F4F6]"
+                  placeholder="Enter your Username"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.code === "Enter" || e.code === "NumpadEnter") {
+                      e.preventDefault();
+                      handleClick();
+                      setQuery("");
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           {showWelcomeMsg && (

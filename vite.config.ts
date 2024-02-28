@@ -6,7 +6,7 @@ import customDynamicImport from "./utils/plugins/custom-dynamic-import";
 import addHmr from "./utils/plugins/add-hmr";
 import manifest from "./manifest";
 import { viteStaticCopy } from "vite-plugin-static-copy";
-import requireTransform from "vite-plugin-require-transform";
+import inlineVitePreloadScript from "./utils/plugins/inline-vite-preload";
 
 const root = resolve(__dirname, "src");
 const pagesDir = resolve(root, "pages");
@@ -35,6 +35,7 @@ export default defineConfig({
       contentScriptCssKey: regenerateCacheInvalidationKey(),
     }),
     customDynamicImport(),
+    inlineVitePreloadScript(),
     addHmr({ background: enableHmrInBackgroundScript, view: true }),
     viteStaticCopy({
       targets: [
@@ -61,6 +62,7 @@ export default defineConfig({
     // sourcemap: isDev,
     minify: isProduction,
     reportCompressedSize: isProduction,
+    modulePreload: false,
     rollupOptions: {
       input: {
         devtools: resolve(pagesDir, "devtools", "index.html"),

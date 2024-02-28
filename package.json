@@ -19,9 +19,11 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.39.7",
     "react": "18.2.0",
+    "react-device-detect": "^2.2.3",
     "react-dom": "18.2.0",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
+    "tailwind-scrollbar": "^3.1.0",
     "vite-plugin-require-transform": "^1.0.21"
   },
   "devDependencies": {
@@ -38,6 +40,7 @@
     "@vitejs/plugin-react": "2.2.0",
     "autoprefixer": "^10.4.14",
     "chokidar": "^3.5.3",
+    "clsx": "^2.1.0",
     "cross-env": "^7.0.3",
     "eslint": "8.36.0",
     "eslint-config-prettier": "^8.5.0",

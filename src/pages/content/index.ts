@@ -141,3 +141,5 @@ function addBtn() {
     });
   });
 }
+
+import("@pages/content/ui");
