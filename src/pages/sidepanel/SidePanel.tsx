@@ -556,7 +556,7 @@ const SidePanel = () => {
                 <input
                   type="text"
                   className="input w-full p-4 bg-[#F3F4F6]"
-                  placeholder="Enter your Username"
+                  placeholder="Enter your query"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
