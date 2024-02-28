@@ -145,12 +145,17 @@ const Offscreen = () => {
             };
 
             client_socket.onmessage = async (msg) => {
-              if (JSON.parse(msg.data).type !== "Results") return;
+              let msgData;
+              try {
+                msgData = JSON.parse(msg.data)
+              } catch { }
 
-              console.log("JSON.parse(msg.data): ", JSON.parse(msg.data));
+              if (msgData.type !== "Results") return;
 
-              const { transcript } = JSON.parse(msg.data).channel
-                .alternatives[0];
+              console.log("msgData: ", msgData);
+
+              const { transcript } = msgData?.channel
+                .alternatives[0] || {};
 
               if (transcript) {
                 console.log("---> old_transcript: ", old_transcript);
@@ -171,8 +176,7 @@ const Offscreen = () => {
                 );
 
                 // get the last 100 words from the old_transcript
-                const transcriptionWithThreshold = old_transcript
-                  .split(" ")
+                const transcriptionWithThreshold = old_transcript?.split(" ")
                   .slice(-100)
                   .join(" ");
 
