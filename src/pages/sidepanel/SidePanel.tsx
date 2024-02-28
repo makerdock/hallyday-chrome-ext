@@ -25,6 +25,7 @@ const SidePanel = () => {
 
   interface Message {
     speakerEmail?: string;
+    userRequestContent?: string;
     speakerType: "rep" | "client";
     messageText: string;
     timestamp: string;
@@ -372,7 +373,7 @@ const SidePanel = () => {
       switch (request.message.type) {
         case "CLIENT_TRANSCRIPT_CONTEXT":
           {
-            const { aiInsight, messageText } = request.message.data;
+            const { aiInsight, messageText, userRequestContent } = request.message.data;
 
             if (!aiInsight && !messageText) {
               setListeningMsg(FAILED_LISTENING_MSG);
@@ -394,16 +395,14 @@ const SidePanel = () => {
               speakerType: SpeakerType.CLIENT,
               messageText,
               aiInsight,
+              userRequestContent,
               timestamp: new Date().toISOString(),
             };
-
-            console.log("message: ", message);
 
             // updateTranscription(message);
             setTranscription((prev) => {
               const updatedTranscription = [...prev, message];
               updateTranscription(updatedTranscription);
-
               return updatedTranscription;
             });
 
@@ -505,48 +504,51 @@ const SidePanel = () => {
               )}
               ref={scrollRef}
             >
-              {transcription.map(({ aiInsight }, index) => {
+              {transcription.map(({ userRequestContent, aiInsight }, index) => {
                 return (
-                  <p
-                    className="bg-white rounded-md mb-4 p-2 shadow-lg min-h-[80px]"
-                    key={index}
-                  >
-                    <Markdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        ul: ({ node, ...props }) => (
-                          <ul
-                            style={{
-                              padding: "10px 20px",
-                            }}
-                            {...props}
-                          ></ul>
-                        ),
-                        ol: ({ node, ...props }) => (
-                          <ol
-                            style={{
-                              padding: "10px 20px",
-                            }}
-                            {...props}
-                          ></ol>
-                        ),
-                        li: ({ node, ...props }) => (
-                          <li
-                            style={{
-                              marginBottom: "10px",
-                              listStyle: "auto",
-                            }}
-                            {...props}
-                          ></li>
-                        ),
-                        a: ({ node, ...props }) => (
-                          <a style={{ color: "blue" }} {...props}></a>
-                        ),
-                      }}
+                  <div>
+                    <span className="text-xscode">{userRequestContent}</span>
+                    <p
+                      className="bg-white rounded-md mb-4 p-2 shadow-lg min-h-[80px]"
+                      key={index}
                     >
-                      {aiInsight}
-                    </Markdown>
-                  </p>
+                      <Markdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          ul: ({ node, ...props }) => (
+                            <ul
+                              style={{
+                                padding: "10px 20px",
+                              }}
+                              {...props}
+                            ></ul>
+                          ),
+                          ol: ({ node, ...props }) => (
+                            <ol
+                              style={{
+                                padding: "10px 20px",
+                              }}
+                              {...props}
+                            ></ol>
+                          ),
+                          li: ({ node, ...props }) => (
+                            <li
+                              style={{
+                                marginBottom: "10px",
+                                listStyle: "auto",
+                              }}
+                              {...props}
+                            ></li>
+                          ),
+                          a: ({ node, ...props }) => (
+                            <a style={{ color: "blue" }} {...props}></a>
+                          ),
+                        }}
+                      >
+                        {aiInsight}
+                      </Markdown>
+                    </p>
+                  </div>
                 );
               })}
             </div>

@@ -177,7 +177,7 @@ const Offscreen = () => {
 
                 // get the last 100 words from the old_transcript
                 const transcriptionWithThreshold = old_transcript?.split(" ")
-                  .slice(-100)
+                  .slice(-50)
                   .join(" ");
 
                 chrome.runtime.sendMessage({
@@ -326,7 +326,7 @@ const Offscreen = () => {
           target: "sidepanel",
           data: {
             aiInsight: data.aiResponseContent,
-            // messageText: old_transcript,
+            userRequestContent: data.userRequestContent,
             messageText: transcription,
           },
         },
@@ -351,6 +351,7 @@ const Offscreen = () => {
           data: {
             aiInsight: "",
             messageText: "",
+            userRequestContent: "",
           },
         },
       });

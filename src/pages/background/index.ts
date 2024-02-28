@@ -104,20 +104,22 @@ chrome.action.onClicked.addListener(async (tab) => {
   if (await isRecordingInProgress()) {
     console.log("=== RECORDING IS IN PROGRESS ===");
 
-    if (await isSameTab()) initateRecordingStop();
-    // If user is trying to record from an another tab
-    else {
-      console.log("Recording is in progress in another tab");
+    await initateRecordingStop();
+    // if (await isSameTab()) initateRecordingStop();
+    // // If user is trying to record from an another tab
+    // else {
+    //   console.log("Recording is in progress in another tab");
 
-      chrome.notifications.create({
-        title: "Hallyday AI assistant",
-        message: "Recording is in progress in another tab",
-        type: "basic",
-        iconUrl: chrome.runtime.getURL("icon-34.png"),
-      });
-      return;
-    }
-  } else initateRecordingStart();
+    //   chrome.notifications.create({
+    //     title: "Hallyday AI assistant",
+    //     message: "Recording is in progress in another tab",
+    //     type: "basic",
+    //     iconUrl: chrome.runtime.getURL("icon-34.png"),
+    //   });
+    //   return;
+    // }
+  }
+  initateRecordingStart();
 
   // if (!actionClicked) initateRecordingStart();
   // else initateRecordingStop();
