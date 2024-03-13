@@ -147,15 +147,14 @@ const Offscreen = () => {
             client_socket.onmessage = async (msg) => {
               let msgData;
               try {
-                msgData = JSON.parse(msg.data)
-              } catch { }
+                msgData = JSON.parse(msg.data);
+              } catch {}
 
               if (msgData.type !== "Results") return;
 
               console.log("msgData: ", msgData);
 
-              const { transcript } = msgData?.channel
-                .alternatives[0] || {};
+              const { transcript } = msgData?.channel.alternatives[0] || {};
 
               if (transcript) {
                 console.log("---> old_transcript: ", old_transcript);
@@ -176,7 +175,8 @@ const Offscreen = () => {
                 );
 
                 // get the last 100 words from the old_transcript
-                const transcriptionWithThreshold = old_transcript?.split(" ")
+                const transcriptionWithThreshold = old_transcript
+                  ?.split(" ")
                   .slice(-50)
                   .join(" ");
 
@@ -189,64 +189,6 @@ const Offscreen = () => {
                 });
 
                 handleTranscription(transcriptionWithThreshold);
-
-                // let data;
-                // try {
-                //   const response = await fetch(
-                //     "https://hallyday-dashboard.vercel.app/api/ai/reply",
-                //     {
-                //       method: "POST",
-                //       body: JSON.stringify({
-                //         transcription: transcriptionWithThreshold,
-                //       }),
-                //     }
-                //   );
-
-                //   data = await response.json();
-                // } catch (error) {
-                //   console.error(error);
-                // }
-
-                // if (
-                //   data.aiResponseContent &&
-                //   data.aiResponseContent.length > 0 &&
-                //   data.aiResponseContent !== '""'
-                // ) {
-                //   chrome.runtime.sendMessage({
-                //     message: {
-                //       type: "CLIENT_TRANSCRIPT_CONTEXT",
-                //       target: "sidepanel",
-                //       data: {
-                //         aiInsight: data.aiResponseContent,
-                //         // messageText: old_transcript,
-                //         messageText: transcriptionWithThreshold,
-                //       },
-                //     },
-                //   });
-
-                //   // Reset the old data
-                //   old_transcript = "";
-                // } else {
-                //   // Set the old transcript so that it can be appended with the next api call
-                //   // old_transcript = old_transcript + " " + transcript;
-
-                //   console.log(
-                //     "\x1b[33m[OLD TRANSCRIPT] transcript ->",
-                //     old_transcript,
-                //     "\x1b"
-                //   );
-
-                //   chrome.runtime.sendMessage({
-                //     message: {
-                //       type: "CLIENT_TRANSCRIPT_CONTEXT",
-                //       target: "sidepanel",
-                //       data: {
-                //         aiInsight: "",
-                //         messageText: "",
-                //       },
-                //     },
-                //   });
-                // }
               }
             };
 

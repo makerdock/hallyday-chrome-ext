@@ -5,14 +5,9 @@ import {
   isRecordingInProgress,
   isSameTab,
 } from "../../../utils/recorderUtils";
-// import { Tokens, getTokens } from "../../../utils/getTokens";
 import { RecordingStates } from "../../../utils/recordingState";
 
 import { createClient } from "@supabase/supabase-js";
-// import { createRequire } from "module";
-// const require = createRequire(import.meta.url);
-
-// const createClient = require("@supabase/supabase-js").createClient;
 
 /**
  * Path to the offscreen HTML document.
@@ -25,19 +20,6 @@ const _supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoa2RyanR0d3lpcGVhbGNoeG5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDgwODgyNDIsImV4cCI6MjAyMzY2NDI0Mn0.YMSvBR5BXRV1lfXI5j_z-Gd6v0cZNojONjf3YHTiHNY"
 );
 console.log("SUPABASE: ", _supabase);
-
-getUserId();
-
-async function getUserId() {
-  const { accessToken, refreshToken } = (await getTokens()) as Tokens;
-
-  const resp = await _supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-
-  console.log("SUPABASE DATA: ", resp);
-}
 
 /**
  * Reason for creating the offscreen document.
@@ -104,79 +86,29 @@ chrome.action.onClicked.addListener(async (tab) => {
   if (await isRecordingInProgress()) {
     console.log("=== RECORDING IS IN PROGRESS ===");
 
-    await initateRecordingStop();
-    // if (await isSameTab()) initateRecordingStop();
-    // // If user is trying to record from an another tab
-    // else {
-    //   console.log("Recording is in progress in another tab");
+    if (await isSameTab()) initateRecordingStop();
+    // If user is trying to record from an another tab
+    else {
+      console.log("Recording is in progress in another tab");
 
-    //   chrome.notifications.create({
-    //     title: "Hallyday AI assistant",
-    //     message: "Recording is in progress in another tab",
-    //     type: "basic",
-    //     iconUrl: chrome.runtime.getURL("icon-34.png"),
-    //   });
-    //   return;
-    // }
+      chrome.notifications.create({
+        title: "Hallyday AI assistant",
+        message: "Recording is in progress in another tab",
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("icon-34.png"),
+      });
+      return;
+    }
+  } else {
+    // if cur_meeting_url is EMPTY, then this is a new meeting
+    initateRecordingStart();
   }
-  initateRecordingStart();
 
   // if (!actionClicked) initateRecordingStart();
   // else initateRecordingStop();
 
   // actionClicked = !actionClicked;
 });
-
-// async function isLoggedIn() {
-//   const { accessToken, refreshToken } = (await getTokens()) as Tokens;
-
-//   return accessToken && refreshToken;
-// }
-
-// async function isSameTab() {
-//   // check whether cur_meeting_url is equal to the tab which is active
-//   const tabs = await chrome.tabs.query({ active: true });
-//   console.log("[isValidTab] tabs: ", tabs[0]);
-
-//   const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
-//   console.log("[isValidTab] cur_meeting_url: ", cur_meeting_url);
-
-//   return (
-//     tabs[0].url &&
-//     cur_meeting_url &&
-//     new URL(tabs[0].url).pathname === new URL(cur_meeting_url).pathname
-//   );
-// }
-
-// async function isRecordingInProgress() {
-//   const { recording_state } = (await getRecordingState()) as RecordingState;
-//   // const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
-
-//   return (
-//     RecordingStates.IN_PROGRESS === recording_state
-//     // cur_meeting_url &&
-//     // cur_meeting_url.length > 0 // Not empty
-//   );
-
-//   // Incase of clicking icon from a different tab check, need to verify the url as well
-//   // instead of just non empty check
-// }
-
-// async function getMeetingUrl() {
-//   return new Promise((resolve, reject) => {
-//     chrome.storage.local.get(["cur_meeting_url"], ({ cur_meeting_url }) => {
-//       resolve({ cur_meeting_url });
-//     });
-//   });
-// }
-
-// async function getRecordingState() {
-//   return new Promise((resolve, reject) => {
-//     chrome.storage.local.get(["recording_state"], ({ recording_state }) => {
-//       resolve({ recording_state });
-//     });
-//   });
-// }
 
 /**
  * Listener for messages from the extension.
@@ -186,19 +118,6 @@ chrome.action.onClicked.addListener(async (tab) => {
  */
 chrome.runtime.onMessage.addListener((request) => {
   switch (request.message.type) {
-    // case "TOGGLE_RECORDING":
-    //   switch (request.message.data) {
-    //     case "START":
-    //       initateRecordingStart();
-
-    //       console.log("STARTING..", request);
-
-    //       break;
-    //     case "STOP":
-    //       initateRecordingStop();
-    //       break;
-    //   }
-    //   break;
     case "SHOW_SIDEPANEL":
       openSidePanel();
       break;
@@ -207,28 +126,6 @@ chrome.runtime.onMessage.addListener((request) => {
       break;
   }
 });
-
-// chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-//   switch (request.message.type) {
-//     case "FETCH_CUR_URL":
-//       console.log("RECEIVED msg - FETCH_CUR_URL, SENDER:", sender);
-
-//       fetchCurUrl().then((data) => {
-//         sendResponse(data);
-//       });
-
-//       break;
-//   }
-
-//   return true;
-// });
-
-// async function fetchCurUrl() {
-//   const tabs = await chrome.tabs.query({ active: true });
-//   console.log("[fetchCurUrl] tabs: ", tabs[0]);
-
-//   return tabs[0].url;
-// }
 
 async function login() {
   // Store the current tab id
@@ -440,12 +337,12 @@ function initateRecordingStop() {
   console.log("Recording stopped at offscreen");
   sendMessageToOffscreenDocument("STOP_OFFSCREEN_RECORDING");
 
-  // chrome.runtime.sendMessage({
-  //   message: {
-  //     type: "HANDLE_END_MEETING",
-  //     target: "sidepanel",
-  //   },
-  // });
+  chrome.runtime.sendMessage({
+    message: {
+      type: "HANDLE_END_MEETING",
+      target: "sidepanel",
+    },
+  });
 
   chrome.storage.local.set({
     recording_state: RecordingStates.ENDED,

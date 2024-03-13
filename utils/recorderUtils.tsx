@@ -13,13 +13,22 @@ export interface Tokens {
   refreshToken: string;
 }
 
+export interface Message {
+  speakerEmail?: string;
+  userRequestContent?: string;
+  speakerType: "rep" | "client";
+  messageText: string;
+  timestamp: string;
+  aiInsight?: string;
+}
+
 export async function isSameTab() {
   // check whether cur_meeting_url is equal to the tab which is active
   const tabs = await chrome.tabs.query({ active: true });
-  console.log("[isValidTab] tabs: ", tabs[0]);
+  console.log("[isSameTab] tabs: ", tabs[0]);
 
   const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
-  console.log("[isValidTab] cur_meeting_url: ", cur_meeting_url);
+  console.log("[isSameTab] cur_meeting_url: ", cur_meeting_url);
 
   return (
     tabs[0].url &&
@@ -46,6 +55,8 @@ export async function getRecordingState() {
 
 export async function isRecordingInProgress() {
   const { recording_state } = (await getRecordingState()) as RecordingState;
+
+  console.log("IS RECORDING IN PROGRESS: ", recording_state);
 
   return RecordingStates.IN_PROGRESS === recording_state;
 }
