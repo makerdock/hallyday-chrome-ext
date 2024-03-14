@@ -12,7 +12,7 @@ import {
   addTranscription,
   updateEndTime,
   addAndGetMeetingInfo,
-  _getTranscript,
+  getClientTranscript,
 } from "../../../utils/supabase";
 
 const SidePanel = () => {
@@ -150,7 +150,7 @@ const SidePanel = () => {
   async function populateExistingTranscripts() {
     if (!(await isSameTab())) return;
 
-    const transcription = await _getTranscript(meetingIdRef.current);
+    const transcription = await getClientTranscript(meetingIdRef.current);
 
     // const transcription = await getTranscript();
     setTranscription(transcription || []);

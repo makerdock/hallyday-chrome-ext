@@ -1,6 +1,7 @@
 // supabase.ts
 import { SupabaseClient, createClient } from "@supabase/supabase-js";
 import { MeetingUrl, Message, getMeetingUrl } from "./recorderUtils";
+import { SpeakerType } from "./speakerType";
 
 export const SUPABASE_URL = "https://fhkdrjttwyipealchxne.supabase.co"; // Replace with your Supabase URL
 export const SUPABASE_ANON_KEY =
@@ -49,26 +50,12 @@ export async function addAndGetMeetingInfo() {
   if (!error) return data;
 }
 
-export async function getTranscript() {
-  const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
-
-  console.log("==> Meeting Url: ", cur_meeting_url);
-
-  const { data, error } = await supabaseGlobal
-    .from("meeting")
-    .select("transcription")
-    .eq("meeting_url", cur_meeting_url)
-    .single();
-
-  const { transcription } = data;
-  return transcription;
-}
-
-export async function _getTranscript(meeting_id: number) {
+export async function getClientTranscript(meeting_id: number) {
   const { data, error } = await supabaseGlobal
     .from("transcription")
     .select()
     .eq("meeting_id", meeting_id)
+    .eq("speaker_type", SpeakerType.CLIENT)
     .order("created_at");
 
   console.log("[_getTranscript] data: ", data);
