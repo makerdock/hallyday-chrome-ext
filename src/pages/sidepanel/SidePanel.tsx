@@ -9,10 +9,10 @@ import remarkGfm from "remark-gfm";
 import clsx from "clsx";
 
 import {
-  getTranscript,
+  addTranscription,
   updateEndTime,
-  updateMeetingInfo,
-  updateTranscription,
+  addAndGetMeetingInfo,
+  _getTranscript,
 } from "../../../utils/supabase";
 
 const SidePanel = () => {
@@ -54,7 +54,6 @@ const SidePanel = () => {
   ]);
 
   const [showWelcomeMsg, setShowWelcomeMsg] = useState<boolean>(true);
-
   const [showListeningMsg, setShowListeningMsg] = useState<boolean>(false);
   const [listeningMsg, setListeningMsg] = useState<string>(
     DEFAULT_LISTENING_MSG
@@ -64,9 +63,12 @@ const SidePanel = () => {
 
   const showListeningMsgRef = useRef<boolean>(null);
   const sidepanelRef = useRef<HTMLDivElement>(null);
+  const meetingIdRef = useRef<number>(-1);
 
   useEffect(() => {
     console.log("=> transcription: ", transcription);
+
+    console.log("=> transcription: ", transcription[0]);
 
     if (scrollRef.current) {
       scrollRef.current?.scrollTo({
@@ -78,7 +80,6 @@ const SidePanel = () => {
 
   useEffect(() => {
     if (NOT_RECORDING === recordingState) {
-      console.log("### SHOW WELCOME MSG ###");
       setShowWelcomeMsg(true);
       setShowListeningMsg(false);
     } else {
@@ -108,10 +109,18 @@ const SidePanel = () => {
     }
   }
 
+  async function handleRecordingStart() {
+    const { id } = await addAndGetMeetingInfo();
+    console.log("meeting id: ", id);
+
+    meetingIdRef.current = id;
+
+    populateExistingTranscripts();
+  }
+
   useEffect(() => {
     if (RECORDING === recordingState) {
-      updateMeetingInfo();
-      populateExistingTranscripts();
+      handleRecordingStart();
     }
   }, [recordingState]);
 
@@ -141,7 +150,9 @@ const SidePanel = () => {
   async function populateExistingTranscripts() {
     if (!(await isSameTab())) return;
 
-    const transcription = await getTranscript();
+    const transcription = await _getTranscript(meetingIdRef.current);
+
+    // const transcription = await getTranscript();
     setTranscription(transcription || []);
   }
 
@@ -165,10 +176,10 @@ const SidePanel = () => {
       switch (request.message.type) {
         case "CLIENT_TRANSCRIPT_CONTEXT":
           {
-            const { aiInsight, messageText, userRequestContent } =
+            const { ai_insight, message_text, user_request_content } =
               request.message.data;
 
-            if (!aiInsight && !messageText) {
+            if (!ai_insight && !message_text) {
               setListeningMsg(FAILED_LISTENING_MSG);
 
               const interval = setInterval(() => {
@@ -181,21 +192,19 @@ const SidePanel = () => {
               return;
             }
 
-            // if (aiInsight && aiInsight.length > 0)
-            //   setMsgs((prev) => [...prev, aiInsight]);
-
             const message: Message = {
-              speakerType: SpeakerType.CLIENT,
-              messageText,
-              aiInsight,
-              userRequestContent,
-              timestamp: new Date().toISOString(),
+              speaker_type: SpeakerType.CLIENT,
+              message_text,
+              ai_insight,
+              meeting_id: meetingIdRef.current,
             };
 
-            // updateTranscription(message);
+            console.log("===> befre sending: ", meetingIdRef.current);
+
             setTranscription((prev) => {
               const updatedTranscription = [...prev, message];
-              updateTranscription(updatedTranscription);
+
+              addTranscription(message);
               return updatedTranscription;
             });
 
@@ -258,9 +267,9 @@ const SidePanel = () => {
             <p>{recordingState}</p>
           </div>
 
-          <div className="h-full flex flex-col">
+          <div className="flex flex-col flex-grow max-h-[calc(100%_-_54px)]">
             {showListeningMsg && (
-              <div className="p-4 bg-gray-300 m-4 mb-0 relative">
+              <div className="p-4 bg-gray-300 m-4 relative">
                 <span>{listeningMsg}</span>
                 <span className="animate-ping absolute top-0 right-0 h-[10px] w-[10px] rounded-full bg-red-800 opacity-95"></span>
               </div>
@@ -276,15 +285,14 @@ const SidePanel = () => {
 
             <div
               className={clsx(
-                "overflow-auto flex-grow p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#474848]",
-                window.innerHeight > 700 ? "max-h-[1052px]" : "max-h-[442px]"
+                "overflow-auto flex-grow p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#474848]"
               )}
               ref={scrollRef}
             >
-              {transcription.map(({ userRequestContent, aiInsight }, index) => {
+              {transcription.map(({ message_text, ai_insight }, index) => {
                 return (
                   <div key={index}>
-                    <span className="text-xscode">{userRequestContent}</span>
+                    <span className="text-xscode">{message_text}</span>
                     <p
                       className="bg-white rounded-md mb-4 p-2 shadow-lg min-h-[80px]"
                       key={index}
@@ -322,7 +330,7 @@ const SidePanel = () => {
                           ),
                         }}
                       >
-                        {aiInsight}
+                        {ai_insight}
                       </Markdown>
                     </p>
                   </div>
@@ -331,7 +339,7 @@ const SidePanel = () => {
             </div>
 
             {showListeningMsg && (
-              <div className="w-full p-4">
+              <div className="w-full p-4 mt-auto">
                 <input
                   type="text"
                   className="input w-full p-4 bg-[#F3F4F6]"
@@ -351,7 +359,7 @@ const SidePanel = () => {
           </div>
         </div>
       ) : (
-        <div className="w-full flex mt-4">
+        <div className="w-full flex">
           <button
             className="p-2 px-4 bg-gray-500 rounded-md mx-auto"
             onClick={handleLogin}

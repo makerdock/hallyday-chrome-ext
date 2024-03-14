@@ -8,32 +8,45 @@ export const SUPABASE_ANON_KEY =
 
 export const supabaseGlobal = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export async function addTranscription(transcription: Message) {
+export async function addTranscription(message: Message) {
+  console.log("[addtranscription] message: ", message);
+
+  const { message_text, speaker_type, ai_insight, meeting_id } = message;
+
   const { data, error } = await supabaseGlobal.from("transcription").upsert([
     {
-      message_text: transcription.messageText,
+      message_text,
+      speaker_type,
+      meeting_id,
+      ai_insight,
     },
   ]);
+
+  console.log("[addtranscription] data: ", data);
+  console.log("[addtranscription] error: ", error);
 }
 
-export async function updateMeetingInfo() {
+export async function addAndGetMeetingInfo() {
   console.log("Inside updateMeetingInfo, ");
 
   const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
 
   console.log("==> Meeting Url: ", cur_meeting_url);
 
-  const data = await supabaseGlobal
+  const { data, error } = await supabaseGlobal
     .from("meeting")
     .upsert([
       {
         meeting_url: cur_meeting_url,
       },
     ])
-    .select();
+    .select("id")
+    .single();
 
   console.log("#### [UPSERT] Data: ", data);
   // console.log("[UPSERT] Error: ", error);
+
+  if (!error) return data;
 }
 
 export async function getTranscript() {
@@ -49,6 +62,17 @@ export async function getTranscript() {
 
   const { transcription } = data;
   return transcription;
+}
+
+export async function _getTranscript(meeting_id: number) {
+  const { data, error } = await supabaseGlobal
+    .from("transcription")
+    .select()
+    .eq("meeting_id", meeting_id)
+    .order("created_at");
+
+  console.log("[_getTranscript] data: ", data);
+  return data;
 }
 
 export async function updateEndTime() {

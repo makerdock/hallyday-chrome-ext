@@ -127,12 +127,12 @@ const Offscreen = () => {
             });
 
             client_socket = new WebSocket(
-              "wss://api.deepgram.com/v1/listen?model=general-enhanced",
+              "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
               ["token", apiKey]
             );
 
             rep_socket = new WebSocket(
-              "wss://api.deepgram.com/v1/listen?model=general-enhanced",
+              "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
               ["token", apiKey]
             );
 
@@ -267,9 +267,9 @@ const Offscreen = () => {
           type: "CLIENT_TRANSCRIPT_CONTEXT",
           target: "sidepanel",
           data: {
-            aiInsight: data.aiResponseContent,
-            userRequestContent: data.userRequestContent,
-            messageText: transcription,
+            ai_insight: data.aiResponseContent,
+            user_request_content: data.userRequestContent,
+            message_text: transcription,
           },
         },
       });
@@ -291,9 +291,9 @@ const Offscreen = () => {
           type: "CLIENT_TRANSCRIPT_CONTEXT",
           target: "sidepanel",
           data: {
-            aiInsight: "",
-            messageText: "",
-            userRequestContent: "",
+            ai_insight: "",
+            message_text: "",
+            user_request_content: "",
           },
         },
       });

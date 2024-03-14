@@ -14,12 +14,11 @@ export interface Tokens {
 }
 
 export interface Message {
-  speakerEmail?: string;
-  userRequestContent?: string;
-  speakerType: "rep" | "client";
-  messageText: string;
-  timestamp: string;
-  aiInsight?: string;
+  user_request_content?: string;
+  speaker_type: "rep" | "client";
+  message_text: string;
+  ai_insight?: string;
+  meeting_id?: number;
 }
 
 export async function isSameTab() {

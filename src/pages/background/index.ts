@@ -285,20 +285,9 @@ async function handleInstall() {
     recording_state: RecordingStates.ENDED,
   });
 
-  console.log("####################");
-  console.log("[handleINstall] SETTING CUR MEETING URL");
-  console.log("####################");
-
-  chrome.storage.local.set(
-    {
-      cur_meeting_url: "",
-    },
-    () => {
-      console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-      console.log("[handleINstall]  cur_meeting_url");
-      console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-    }
-  );
+  chrome.storage.local.set({
+    cur_meeting_url: "",
+  });
 
   console.log("Extension installed...");
   if (!(await hasDocument())) {
@@ -409,23 +398,9 @@ function initateRecordingStart() {
                 const url = new URL(tab.url);
                 const meeting_url = url.origin + url.pathname;
 
-                console.log("####################");
-                console.log(
-                  "[initateRecordingStart] SETTING CUR MEETING URL: ",
-                  meeting_url
-                );
-                console.log("####################");
-
-                chrome.storage.local.set(
-                  {
-                    cur_meeting_url: meeting_url,
-                  },
-                  () => {
-                    console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-                    console.log("[initateRecordingStart]  cur_meeting_url");
-                    console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-                  }
-                );
+                chrome.storage.local.set({
+                  cur_meeting_url: meeting_url,
+                });
               }
             );
 
