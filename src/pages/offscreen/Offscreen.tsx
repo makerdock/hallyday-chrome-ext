@@ -199,10 +199,21 @@ const Offscreen = () => {
                 .alternatives[0];
               if (transcript) {
                 console.log("\x1b[32m[REP] transcript ->", transcript, "\x1b");
+
+                chrome.runtime.sendMessage({
+                  message: {
+                    type: "REP_TRANSCRIPT",
+                    target: "sidepanel",
+                    data: {
+                      message_text: transcript,
+                    },
+                  },
+                });
               }
             };
 
             const client_data = [];
+            const rep_data = [];
 
             client_mediaRecorder.ondataavailable = (event) => {
               if (event.data.size > 0 && client_socket.readyState == 1) {
@@ -221,11 +232,17 @@ const Offscreen = () => {
                   new Blob(client_data.splice(0, client_data.length))
                 );
               }
+
+              if (rep_data.length > 0) {
+                console.log("<-- SENDING DATA -->");
+                rep_socket.send(new Blob(rep_data.splice(0, rep_data.length)));
+              }
             }, 5000);
 
             rep_mediaRecorder.ondataavailable = (event) => {
               if (event.data.size > 0 && rep_socket.readyState == 1)
-                rep_socket.send(event.data);
+                // rep_socket.send(event.data);
+                rep_data.push(event.data);
             };
 
             console.log("Started recording in offscreen...");

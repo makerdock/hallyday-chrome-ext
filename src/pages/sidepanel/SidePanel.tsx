@@ -212,6 +212,22 @@ const SidePanel = () => {
           }
           break;
 
+        case "REP_TRANSCRIPT":
+          {
+            const { message_text } = request.message.data;
+
+            const message: Message = {
+              speaker_type: SpeakerType.REP,
+              message_text,
+              meeting_id: meetingIdRef.current,
+            };
+
+            console.log("===> befre sending: ", meetingIdRef.current);
+
+            addTranscription(message);
+          }
+          break;
+
         case "CLIENT_TRANSCRIPT":
           {
             console.log(
