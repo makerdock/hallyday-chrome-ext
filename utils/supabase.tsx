@@ -90,20 +90,7 @@ export async function updateEndTime() {
   const { data: upsertData } = await supabaseGlobal.from("meeting").upsert([
     {
       meeting_url: cur_meeting_url,
-      duration: 9999.99,
-    },
-  ]);
-}
-
-export async function updateTranscription(transcription) {
-  const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
-
-  console.log("cur_meeting_url: ", cur_meeting_url);
-
-  const { data, error } = await supabaseGlobal.from("meeting").upsert([
-    {
-      meeting_url: cur_meeting_url,
-      transcription,
+      duration: duration_in_sec,
     },
   ]);
 }
