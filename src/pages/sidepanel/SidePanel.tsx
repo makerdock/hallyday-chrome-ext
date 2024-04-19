@@ -14,6 +14,7 @@ import {
   addAndGetMeetingInfo,
   getClientTranscript,
 } from "../../../utils/supabase";
+import PlaybookDropdown from "./PlaybookDropdown";
 
 const SidePanel = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -283,16 +284,18 @@ const SidePanel = () => {
             <p>{recordingState}</p>
           </div>
 
-          <div className="flex flex-col flex-grow max-h-[calc(100%_-_54px)]">
+          <PlaybookDropdown />
+
+          <div className="flex flex-col flex-grow max-h-[calc(100%_-_150px)]">
             {showListeningMsg && (
-              <div className="p-4 bg-gray-300 m-4 relative">
+              <div className="p-4 bg-gray-300 m-4 relative mt-0">
                 <span>{listeningMsg}</span>
                 <span className="animate-ping absolute top-0 right-0 h-[10px] w-[10px] rounded-full bg-red-800 opacity-95"></span>
               </div>
             )}
 
             {showWelcomeMsg && (
-              <div className="p-4 bg-gray-300 m-4 relative">
+              <div className="p-4 bg-gray-300 m-4 mt-0 relative">
                 Welcome to Hallyday AI assitant. Click the extension icon to
                 &apos;start recording&apos; and let AI to take care of the rest
                 !

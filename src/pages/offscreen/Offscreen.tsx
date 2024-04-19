@@ -1,3 +1,7 @@
+// import SilenceAwareRecorder from "silence-aware-recorder";
+
+import SilenceAwareRecorder from "./SilenceAwareRecorder";
+
 const Offscreen = () => {
   /**
    * MediaRecorder instance for audio recording.
@@ -72,7 +76,8 @@ const Offscreen = () => {
       console.log("Stopped recording in offscreen...");
       // handleStopRecording();
       client_mediaRecorder.stop();
-      rep_mediaRecorder.stop();
+      // rep_mediaRecorder.stop();
+      rep_mediaRecorder.stopRecording();
 
       source.disconnect(audioCtx.destination);
       audioCtx.close();
@@ -81,178 +86,376 @@ const Offscreen = () => {
   }
 
   async function handleRecording(streamId) {
-    getAudioInputDevices().then((audioInputDevices) => {
+    getAudioInputDevices().then(async (audioInputDevices) => {
       const deviceId = audioInputDevices[0].deviceId;
 
       console.log("DEVICE ID: ", deviceId);
 
-      navigator.mediaDevices
-        .getUserMedia({
-          audio: {
-            deviceId: { exact: deviceId },
+      // const audioStream = await navigator.mediaDevices.getUserMedia({
+      //   audio: {
+      //     deviceId: { exact: deviceId },
+      //   },
+      // });
+
+      media = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          mandatory: {
+            chromeMediaSource: "tab",
+            chromeMediaSourceId: streamId,
           },
-        })
-        .then(async (audioStream) => {
-          console.log("AUDIO STREAM: ", audioStream);
+        },
+      });
 
-          try {
-            console.log("--------> Befre getUserMedia <--------", streamId);
+      // Continue to play the captured audio to the user.
+      audioCtx = new AudioContext();
+      source = audioCtx.createMediaStreamSource(media);
+      source.connect(audioCtx.destination);
 
-            media = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                mandatory: {
-                  chromeMediaSource: "tab",
-                  chromeMediaSourceId: streamId,
-                },
+      client_mediaRecorder = new MediaRecorder(media, {
+        mimeType: "video/webm",
+      });
+
+      console.log("client_mediaRecorder: ", client_mediaRecorder);
+
+      // rep_mediaRecorder = new MediaRecorder(audioStream, {
+      //   mimeType: "video/webm",
+      // });
+
+      rep_mediaRecorder = new SilenceAwareRecorder({
+        onDataAvailable: (data) => {
+          console.log("##### [SAR] on data: ", data);
+
+          console.log(
+            "\x1b[34m##### [SAR] on data: ",
+            data,
+            "\x1b",
+            " - state: ",
+            rep_socket.readyState
+          );
+
+          rep_socket.send(data);
+        },
+        onVolumeChange: (volume) => {
+          console.log("#### [SAR] volume: ", volume);
+          // console.log("[SAR] rep_mediaRecorder 2: ", rep_mediaRecorder);
+        },
+        silenceDuration: 1000,
+        silentThreshold: -50,
+        minDecibels: -100,
+        deviceId,
+      });
+
+      console.log("[SAR] rep_mediaRecorder: ", rep_mediaRecorder);
+
+      client_socket = new WebSocket(
+        "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
+        ["token", apiKey]
+      );
+
+      rep_socket = new WebSocket(
+        "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
+        ["token", apiKey]
+      );
+
+      client_socket.onopen = () => {
+        client_mediaRecorder.start(1000);
+      };
+
+      rep_socket.onclose = (ev) => {
+        console.log("#####------------#####");
+        console.log("REP SOCKET ON CLOSE   ", ev);
+        console.log("#####------------#####");
+      };
+
+      rep_socket.onopen = () => {
+        // rep_mediaRecorder.start(1000);
+        rep_mediaRecorder.startRecording();
+      };
+
+      client_socket.onmessage = async (msg) => {
+        let msgData;
+        try {
+          msgData = JSON.parse(msg.data);
+        } catch {}
+
+        if (msgData.type !== "Results") return;
+
+        console.log("msgData: ", msgData);
+
+        const { transcript } = msgData?.channel.alternatives[0] || {};
+
+        if (transcript) {
+          console.log("---> old_transcript: ", old_transcript);
+          console.log("\x1b[31m[CLIENT] transcript ->", transcript, "\x1b");
+
+          old_transcript = old_transcript
+            ? old_transcript + " " + transcript
+            : transcript;
+
+          console.log(
+            "\x1b[31m[RESOLVED CLIENT] transcript ->",
+            old_transcript,
+            "\x1b"
+          );
+
+          // get the last 100 words from the old_transcript
+          const transcriptionWithThreshold = old_transcript
+            ?.split(" ")
+            .slice(-50)
+            .join(" ");
+
+          chrome.runtime.sendMessage({
+            message: {
+              type: "CLIENT_TRANSCRIPT",
+              target: "sidepanel",
+              data: transcriptionWithThreshold,
+            },
+          });
+
+          handleTranscription(transcriptionWithThreshold);
+        }
+      };
+
+      // setInterval(() => {
+      //   if (rep_socket.readyState == 1) rep_socket.send("ping");
+      // }, 5000);
+
+      rep_socket.onmessage = (msg) => {
+        // console.log("<=== REP SOCKET ON MSG ====>", JSON.parse(msg.data));
+
+        if (JSON.parse(msg.data).type !== "Results") return;
+
+        const { transcript } = JSON.parse(msg.data).channel.alternatives[0];
+        console.log("\x1b[32m[REP] transcript ->", transcript, "\x1b");
+        if (transcript) {
+          // console.log("\x1b[32m[REP] transcript ->", transcript, "\x1b");
+
+          chrome.runtime.sendMessage({
+            message: {
+              type: "REP_TRANSCRIPT",
+              target: "sidepanel",
+              data: {
+                message_text: transcript,
               },
-            });
+            },
+          });
+        }
+      };
 
-            console.log("MEDIA: ", media);
+      const client_data = [];
+      const rep_data = [];
 
-            // Continue to play the captured audio to the user.
-            audioCtx = new AudioContext();
-            source = audioCtx.createMediaStreamSource(media);
-            source.connect(audioCtx.destination);
+      client_mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && client_socket.readyState == 1) {
+          // client_socket.send(event.data);
+          client_data.push(event.data);
 
-            console.log("audioStream.getTracks(): ", audioStream.getTracks());
+          // console.log("[on data] client media recordr: ", client_mediaRecorder);
+          // console.log("[on data] rep media recordr: ", rep_mediaRecorder);
+          // console.log("[on data] event.data: ", event.data);
+        }
+      };
 
-            // const combinedStream = mix(output, [media, audioStream]);
+      // https://stackoverflow.com/a/51355276
+      setInterval(() => {
+        if (client_data.length > 0) {
+          console.log("<-- SENDING CLIENT DATA -->", client_data);
+          client_socket.send(
+            new Blob(client_data.splice(0, client_data.length))
+          );
+        }
 
-            client_mediaRecorder = new MediaRecorder(media, {
-              mimeType: "video/webm",
-            });
+        // if (rep_data.length > 0) {
+        //   console.log("<-- SENDING DATA -->");
+        //   rep_socket.send(new Blob(rep_data.splice(0, rep_data.length)));
+        // }
+      }, 5000);
 
-            rep_mediaRecorder = new MediaRecorder(audioStream, {
-              mimeType: "video/webm",
-            });
+      // rep_mediaRecorder.ondataavailable = (event) => {
+      //   if (event.data.size > 0 && rep_socket.readyState == 1)
+      //     // rep_socket.send(event.data);
+      //     rep_data.push(event.data);
+      // };
 
-            client_socket = new WebSocket(
-              "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
-              ["token", apiKey]
-            );
+      console.log("Started recording in offscreen...");
 
-            rep_socket = new WebSocket(
-              "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
-              ["token", apiKey]
-            );
+      // navigator.mediaDevices
+      //   .getUserMedia({
+      //     audio: {
+      //       deviceId: { exact: deviceId },
+      //     },
+      //   })
+      //   .then(async (audioStream) => {
+      //     console.log("AUDIO STREAM: ", audioStream);
 
-            client_socket.onopen = () => {
-              client_mediaRecorder.start(1000);
-            };
+      //     try {
+      //       console.log("--------> Befre getUserMedia <--------", streamId);
 
-            rep_socket.onopen = () => {
-              rep_mediaRecorder.start(1000);
-            };
+      //       media = await navigator.mediaDevices.getUserMedia({
+      //         audio: {
+      //           mandatory: {
+      //             chromeMediaSource: "tab",
+      //             chromeMediaSourceId: streamId,
+      //           },
+      //         },
+      //       });
 
-            client_socket.onmessage = async (msg) => {
-              let msgData;
-              try {
-                msgData = JSON.parse(msg.data);
-              } catch {}
+      //       console.log("MEDIA: ", media);
 
-              if (msgData.type !== "Results") return;
+      //       // Continue to play the captured audio to the user.
+      //       audioCtx = new AudioContext();
+      //       source = audioCtx.createMediaStreamSource(media);
+      //       source.connect(audioCtx.destination);
 
-              console.log("msgData: ", msgData);
+      //       console.log("audioStream.getTracks(): ", audioStream.getTracks());
 
-              const { transcript } = msgData?.channel.alternatives[0] || {};
+      //       // const combinedStream = mix(output, [media, audioStream]);
 
-              if (transcript) {
-                console.log("---> old_transcript: ", old_transcript);
-                console.log(
-                  "\x1b[31m[CLIENT] transcript ->",
-                  transcript,
-                  "\x1b"
-                );
+      //       client_mediaRecorder = new MediaRecorder(media, {
+      //         mimeType: "video/webm",
+      //       });
 
-                old_transcript = old_transcript
-                  ? old_transcript + " " + transcript
-                  : transcript;
+      //       // client_mediaRecorder = new SilenceAwareRecorder({
+      //       //   onDataAvailable: (data) => console.log("[SAR] on data: ", data),
+      //       //   onVolumeChange: (volume) =>
+      //       //     console.log("[SAR] on volume: ", volume),
+      //       //   silenceDuration: 2500,
+      //       //   silentThreshold: -50,
+      //       //   minDecibels: -100,
+      //       //   deviceId: streamId,
+      //       // });
 
-                console.log(
-                  "\x1b[31m[RESOLVED CLIENT] transcript ->",
-                  old_transcript,
-                  "\x1b"
-                );
+      //       rep_mediaRecorder = new MediaRecorder(audioStream, {
+      //         mimeType: "video/webm",
+      //       });
 
-                // get the last 100 words from the old_transcript
-                const transcriptionWithThreshold = old_transcript
-                  ?.split(" ")
-                  .slice(-50)
-                  .join(" ");
+      //       client_socket = new WebSocket(
+      //         "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
+      //         ["token", apiKey]
+      //       );
 
-                chrome.runtime.sendMessage({
-                  message: {
-                    type: "CLIENT_TRANSCRIPT",
-                    target: "sidepanel",
-                    data: transcriptionWithThreshold,
-                  },
-                });
+      //       rep_socket = new WebSocket(
+      //         "wss://api.deepgram.com/v1/listen?model=nova-2-meeting",
+      //         ["token", apiKey]
+      //       );
 
-                handleTranscription(transcriptionWithThreshold);
-              }
-            };
+      //       client_socket.onopen = () => {
+      //         client_mediaRecorder.start(1000);
+      //       };
 
-            rep_socket.onmessage = (msg) => {
-              if (JSON.parse(msg.data).type !== "Results") return;
+      //       rep_socket.onopen = () => {
+      //         rep_mediaRecorder.start(1000);
+      //       };
 
-              const { transcript } = JSON.parse(msg.data).channel
-                .alternatives[0];
-              if (transcript) {
-                console.log("\x1b[32m[REP] transcript ->", transcript, "\x1b");
+      //       client_socket.onmessage = async (msg) => {
+      //         let msgData;
+      //         try {
+      //           msgData = JSON.parse(msg.data);
+      //         } catch {}
 
-                chrome.runtime.sendMessage({
-                  message: {
-                    type: "REP_TRANSCRIPT",
-                    target: "sidepanel",
-                    data: {
-                      message_text: transcript,
-                    },
-                  },
-                });
-              }
-            };
+      //         if (msgData.type !== "Results") return;
 
-            const client_data = [];
-            const rep_data = [];
+      //         console.log("msgData: ", msgData);
 
-            client_mediaRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0 && client_socket.readyState == 1) {
-                // client_socket.send(event.data);
-                client_data.push(event.data);
+      //         const { transcript } = msgData?.channel.alternatives[0] || {};
 
-                console.log("[on data] event.data: ", event.data);
-              }
-            };
+      //         if (transcript) {
+      //           console.log("---> old_transcript: ", old_transcript);
+      //           console.log(
+      //             "\x1b[31m[CLIENT] transcript ->",
+      //             transcript,
+      //             "\x1b"
+      //           );
 
-            // https://stackoverflow.com/a/51355276
-            setInterval(() => {
-              if (client_data.length > 0) {
-                console.log("<-- SENDING DATA -->");
-                client_socket.send(
-                  new Blob(client_data.splice(0, client_data.length))
-                );
-              }
+      //           old_transcript = old_transcript
+      //             ? old_transcript + " " + transcript
+      //             : transcript;
 
-              if (rep_data.length > 0) {
-                console.log("<-- SENDING DATA -->");
-                rep_socket.send(new Blob(rep_data.splice(0, rep_data.length)));
-              }
-            }, 5000);
+      //           console.log(
+      //             "\x1b[31m[RESOLVED CLIENT] transcript ->",
+      //             old_transcript,
+      //             "\x1b"
+      //           );
 
-            rep_mediaRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0 && rep_socket.readyState == 1)
-                // rep_socket.send(event.data);
-                rep_data.push(event.data);
-            };
+      //           // get the last 100 words from the old_transcript
+      //           const transcriptionWithThreshold = old_transcript
+      //             ?.split(" ")
+      //             .slice(-50)
+      //             .join(" ");
 
-            console.log("Started recording in offscreen...");
-          } catch (error) {
-            console.error(
-              "Unable to initiate MediaRecorder and/or streams",
-              error
-            );
-          }
-        });
+      //           chrome.runtime.sendMessage({
+      //             message: {
+      //               type: "CLIENT_TRANSCRIPT",
+      //               target: "sidepanel",
+      //               data: transcriptionWithThreshold,
+      //             },
+      //           });
+
+      //           handleTranscription(transcriptionWithThreshold);
+      //         }
+      //       };
+
+      //       rep_socket.onmessage = (msg) => {
+      //         if (JSON.parse(msg.data).type !== "Results") return;
+
+      //         const { transcript } = JSON.parse(msg.data).channel
+      //           .alternatives[0];
+      //         if (transcript) {
+      //           console.log("\x1b[32m[REP] transcript ->", transcript, "\x1b");
+
+      //           chrome.runtime.sendMessage({
+      //             message: {
+      //               type: "REP_TRANSCRIPT",
+      //               target: "sidepanel",
+      //               data: {
+      //                 message_text: transcript,
+      //               },
+      //             },
+      //           });
+      //         }
+      //       };
+
+      //       const client_data = [];
+      //       const rep_data = [];
+
+      //       client_mediaRecorder.ondataavailable = (event) => {
+      //         if (event.data.size > 0 && client_socket.readyState == 1) {
+      //           // client_socket.send(event.data);
+      //           client_data.push(event.data);
+
+      //           console.log("[on data] event.data: ", event.data);
+      //         }
+      //       };
+
+      //       // https://stackoverflow.com/a/51355276
+      //       setInterval(() => {
+      //         if (client_data.length > 0) {
+      //           console.log("<-- SENDING DATA -->");
+      //           client_socket.send(
+      //             new Blob(client_data.splice(0, client_data.length))
+      //           );
+      //         }
+
+      //         if (rep_data.length > 0) {
+      //           console.log("<-- SENDING DATA -->");
+      //           rep_socket.send(new Blob(rep_data.splice(0, rep_data.length)));
+      //         }
+      //       }, 5000);
+
+      //       rep_mediaRecorder.ondataavailable = (event) => {
+      //         if (event.data.size > 0 && rep_socket.readyState == 1)
+      //           // rep_socket.send(event.data);
+      //           rep_data.push(event.data);
+      //       };
+
+      //       console.log("Started recording in offscreen...");
+      //     } catch (error) {
+      //       console.error(
+      //         "Unable to initiate MediaRecorder and/or streams",
+      //         error
+      //       );
+      //     }
+      //   });
     });
   }
 
