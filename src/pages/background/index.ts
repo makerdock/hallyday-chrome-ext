@@ -337,19 +337,21 @@ function initateRecordingStop() {
     recording_state: RecordingStates.ENDED,
   });
 
-  chrome.notifications.create({
-    title: "Hallyday AI assistant",
-    message: "Meeting ended",
-    type: "basic",
-    iconUrl: chrome.runtime.getURL("icon-34.png"),
-  });
+  // chrome.tabs.create({ url: HALLYDAY_WEBAPP, active: true });
+
+  // chrome.notifications.create({
+  //   title: "Hallyday AI assistant",
+  //   message: "Meeting ended",
+  //   type: "basic",
+  //   iconUrl: chrome.runtime.getURL("icon-34.png"),
+  // });
 }
 
-chrome.notifications.onClicked.addListener(async (notificationId) => {
-  console.log("NOTIFICATION CLICKED: ", notificationId);
+// chrome.notifications.onClicked.addListener(async (notificationId) => {
+//   console.log("NOTIFICATION CLICKED: ", notificationId);
 
-  chrome.tabs.create({ url: HALLYDAY_WEBAPP, active: true });
-});
+//   chrome.tabs.create({ url: HALLYDAY_WEBAPP, active: true });
+// });
 
 /**
  * Initiates the start recording process.
