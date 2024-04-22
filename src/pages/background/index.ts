@@ -86,9 +86,12 @@ chrome.action.onClicked.addListener(async (tab) => {
   if (await isRecordingInProgress()) {
     console.log("=== RECORDING IS IN PROGRESS ===");
 
-    if (await isSameTab()) initateRecordingStop();
-    // If user is trying to record from an another tab
-    else {
+    const tabData = await isSameTab()
+    console.log("🚀 ~ chrome.action.onClicked.addListener ~ tabData:", tabData)
+    if (!!tabData) {
+      initateRecordingStop();
+      // If user is trying to record from an another tab
+    } else {
       console.log("Recording is in progress in another tab");
 
       chrome.notifications.create({

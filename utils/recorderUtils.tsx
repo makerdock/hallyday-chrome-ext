@@ -24,10 +24,12 @@ export interface Message {
 export async function isSameTab() {
   // check whether cur_meeting_url is equal to the tab which is active
   const tabs = await chrome.tabs.query({ active: true });
-  console.log("[isSameTab] tabs: ", tabs[0]);
+  console.log("[isSameTab] tabs: ", tabs.length, tabs);
 
   const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
   console.log("[isSameTab] cur_meeting_url: ", cur_meeting_url);
+
+  // if (cur_meeting_url !== )
 
   return (
     tabs[0].url &&

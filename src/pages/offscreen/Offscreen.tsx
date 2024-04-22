@@ -148,13 +148,14 @@ const Offscreen = () => {
               let msgData;
               try {
                 msgData = JSON.parse(msg.data);
-              } catch {}
+              } catch { }
 
               if (msgData.type !== "Results") return;
 
               console.log("msgData: ", msgData);
 
               const { transcript } = msgData?.channel.alternatives[0] || {};
+              console.log("🚀 ~ client_socket.onmessage= ~ msgData?.channel.alternatives:", msgData?.channel.alternatives)
 
               if (transcript) {
                 console.log("---> old_transcript: ", old_transcript);
@@ -179,6 +180,8 @@ const Offscreen = () => {
                   ?.split(" ")
                   .slice(-50)
                   .join(" ");
+
+                console.log("🚀 ~ client_socket.onmessage= ~ transcriptionWithThreshold:", transcriptionWithThreshold)
 
                 chrome.runtime.sendMessage({
                   message: {
@@ -257,11 +260,15 @@ const Offscreen = () => {
   }
 
   async function handleTranscription(transcription) {
+    console.log("🚀 ~ handleTranscription ~ transcription:", transcription)
     let data;
     try {
       const response = await fetch(
         "https://hallyday-dashboard.vercel.app/api/ai/reply",
         {
+          headers: {
+            "Content-Type": "application/json",
+          },
           method: "POST",
           body: JSON.stringify({
             transcription,
