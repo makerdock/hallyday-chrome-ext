@@ -7,7 +7,7 @@ import { addTranscription } from "../../../utils/supabase";
 const JarvisScreen = () => {
   const meetingIdRef = useRef<number | null>(null);
   const [repText, setRepText] = useState<string>("");
-  const timerRef = useRef<NodeJS.Timeout | null>(null); // Reference to the timeout
+  const timerRef = useRef<NodeJS.Timeout | null>(null); 
   const [apiCallingStart, setAPICallingStart] = useState<boolean>(false);
 
   useEffect(() => {
@@ -75,7 +75,7 @@ const JarvisScreen = () => {
       console.error("Error sending transcript to backend:", error);
     }
   }
-  
+
   return (
     <div
       className="h-full flex text-center place-items-center bg-red-200"
