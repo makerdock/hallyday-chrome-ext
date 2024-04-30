@@ -35,22 +35,47 @@ const JarvisScreen = () => {
   }, []);
 
   useEffect(() => {
-    console.log("REP TEXT=====================>>>>>>>>>", repText);
-  }, [repText]);
-
-  useEffect(() => {
     // Start or reset the timer when repText changes
+    console.log("REP TEXT=====================>>>>>>>>>", repText);
+
     if (repText.length) {
       if (timerRef.current) clearTimeout(timerRef.current); // Reset the timer if already set
       timerRef.current = setTimeout(() => {
-        // API call after 2 seconds if repText hasn't changed
-        setAPICallingStart(true)
+        // Call the API after 4 seconds if repText hasn't changed
+        setAPICallingStart(true);
+        sendTranscriptToBackend(repText)
         console.log("API call after 4 seconds");
-        // Place your API call here
       }, 4000);
     }
   }, [repText]);
 
+  async function sendTranscriptToBackend(transcriptionArg: string) {
+    const postData = {
+      transcription: transcriptionArg,
+      teamID: "",
+    };
+  
+    try {
+      // Make the POST request
+      const response = await fetch("http://localhost:3000/api/ai/assistant", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(postData),
+      });
+  
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+  
+      const data = await response.json();
+      console.log("API call Response after 4 seconds", data);
+    } catch (error) {
+      console.error("Error sending transcript to backend:", error);
+    }
+  }
+  
   return (
     <div
       className="h-full flex text-center place-items-center bg-red-200"
