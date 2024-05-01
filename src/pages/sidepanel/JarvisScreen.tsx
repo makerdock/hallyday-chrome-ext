@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { Message } from "../../../utils/recorderUtils";
 import { SpeakerType } from "../../../utils/speakerType";
 import { addTranscription } from "../../../utils/supabase";
-
+import axios from "axios";
 const JarvisScreen = () => {
   const meetingIdRef = useRef<number | null>(null);
   const [repText, setRepText] = useState<string>("");
-  const timerRef = useRef<NodeJS.Timeout | null>(null); 
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [apiCallingStart, setAPICallingStart] = useState<boolean>(false);
 
   useEffect(() => {
@@ -35,46 +35,45 @@ const JarvisScreen = () => {
   }, []);
 
   useEffect(() => {
+    console.log("rep Text changing-------------------------------->",repText);
     // Start or reset the timer when repText changes
-    console.log("REP TEXT=====================>>>>>>>>>", repText);
-
     if (repText.length) {
       if (timerRef.current) clearTimeout(timerRef.current); // Reset the timer if already set
       timerRef.current = setTimeout(() => {
         // Call the API after 4 seconds if repText hasn't changed
         setAPICallingStart(true);
-        sendTranscriptToBackend(repText)
         console.log("API call after 4 seconds");
+        sendTranscriptToBackend();
       }, 4000);
     }
   }, [repText]);
 
-  async function sendTranscriptToBackend(transcriptionArg: string) {
-    const postData = {
-      transcription: transcriptionArg,
-      teamID: "",
-    };
-  
+
+  async function sendTranscriptToBackend() {
     try {
-      // Make the POST request
-      const response = await fetch("http://localhost:3000/api/ai/assistant", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(postData),
-      });
-  
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
+      if (!meetingIdRef) {
+        throw new Error("Meeting ID not found");
       }
   
-      const data = await response.json();
-      console.log("API call Response after 4 seconds", data);
+      const postData = {
+        meetingId: meetingIdRef,
+      };
+  
+      // Make the POST request using Axios
+      const response = await axios.post("http://localhost:3000/api/ai/assistant", postData, {
+        method:"POST",
+        headers: {
+          "Content-Type": "application/json",
+
+        }
+      });
+  
+      console.log("API call Response after 4 seconds", response.data);
     } catch (error) {
       console.error("Error sending transcript to backend:", error);
     }
   }
+  
 
   return (
     <div
