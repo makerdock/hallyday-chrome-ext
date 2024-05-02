@@ -14,6 +14,7 @@ import {
   addAndGetMeetingInfo,
   getClientTranscript,
 } from "../../../utils/supabase";
+import JarvisScreen from "./JarvisScreen";
 
 const ActiveMeetingTab = () => {
   const HALLYDAY_WEBAPP = "https://hallyday-dashboard.vercel.app";
@@ -28,7 +29,7 @@ const ActiveMeetingTab = () => {
 
   const [recordingState, setRecordingState] = useState(NOT_RECORDING);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [isMeetingActive, setMeetingActive] = useState<boolean>(true)
+  const [isMeetingActive, setMeetingActive] = useState<boolean>(true);
   const [transcription, setTranscription] = useState<Message[]>([
     // {
     //   aiInsight:
@@ -270,11 +271,11 @@ const ActiveMeetingTab = () => {
   }
 
   const handleEndMeetingClick = () => {
-    setMeetingActive(false)
-  }
+    setMeetingActive(false);
+  };
 
   if (!isMeetingActive) {
-    return <JarvisScreen />
+    return <JarvisScreen />;
   }
 
   return (
@@ -376,7 +377,6 @@ const ActiveMeetingTab = () => {
               </div>
             )} */}
           </div>
-
         </div>
       ) : (
         <div className="w-full flex">

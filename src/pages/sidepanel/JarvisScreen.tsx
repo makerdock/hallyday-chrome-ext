@@ -2,7 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Message } from "../../../utils/recorderUtils";
 import { SpeakerType } from "../../../utils/speakerType";
-import { addTranscription } from "../../../utils/supabase";
+import {
+  addAndGetMeetingInfo,
+  addTranscription,
+  getCurrentUser,
+} from "../../../utils/supabase";
 import axios from "axios";
 const JarvisScreen = () => {
   const meetingIdRef = useRef<number | null>(null);
@@ -35,7 +39,7 @@ const JarvisScreen = () => {
   }, []);
 
   useEffect(() => {
-    console.log("rep Text changing-------------------------------->",repText);
+    console.log("rep Text changing-------------------------------->", repText);
     // Start or reset the timer when repText changes
     if (repText.length) {
       if (timerRef.current) clearTimeout(timerRef.current); // Reset the timer if already set
@@ -43,37 +47,49 @@ const JarvisScreen = () => {
         // Call the API after 4 seconds if repText hasn't changed
         setAPICallingStart(true);
         console.log("API call after 4 seconds");
-        sendTranscriptToBackend();
       }, 4000);
     }
   }, [repText]);
 
-
-  async function sendTranscriptToBackend() {
-    try {
-      if (!meetingIdRef) {
-        throw new Error("Meeting ID not found");
-      }
-  
-      const postData = {
-        meetingId: meetingIdRef,
-      };
-  
-      // Make the POST request using Axios
-      const response = await axios.post("http://localhost:3000/api/ai/assistant", postData, {
-        method:"POST",
-        headers: {
-          "Content-Type": "application/json",
-
-        }
+  useEffect(() => {
+    if (apiCallingStart) {
+      handleRecordingStart().then(() => {
+        sendTranscriptToBackend(meetingIdRef.current);
       });
-  
+    }
+  }, [apiCallingStart]);
+
+  async function handleRecordingStart() {
+    const { id } = await addAndGetMeetingInfo();
+
+    meetingIdRef.current = id;
+  }
+
+  async function sendTranscriptToBackend(meeting_id: number) {
+    try {
+      if (!meeting_id) throw new Error("meetingId required");
+
+      const postData = {
+        meetingId: meeting_id,
+      };
+
+      // Make the POST request using Axios
+      const response = await axios.post(
+        "http://localhost:3000/api/ai/assistant",
+        postData,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       console.log("API call Response after 4 seconds", response.data);
     } catch (error) {
       console.error("Error sending transcript to backend:", error);
     }
   }
-  
 
   return (
     <div
