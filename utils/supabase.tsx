@@ -1,6 +1,7 @@
 // supabase.ts
-import { SupabaseClient, createClient } from "@supabase/supabase-js";
+import { SupabaseClient, User, createClient } from "@supabase/supabase-js";
 import { MeetingUrl, Message, getMeetingUrl } from "./recorderUtils";
+import axios from "axios";
 import { SpeakerType } from "./speakerType";
 
 export const SUPABASE_URL = "https://fhkdrjttwyipealchxne.supabase.co"; // Replace with your Supabase URL
@@ -28,26 +29,54 @@ export async function addTranscription(message: Message) {
 }
 
 export async function addAndGetMeetingInfo() {
-  console.log("Inside updateMeetingInfo, ");
+  try {
+    console.log("Inside updateMeetingInfo, ");
 
-  const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
+    const { cur_meeting_url } = (await getMeetingUrl()) as MeetingUrl;
 
-  console.log("==> Meeting Url: ", cur_meeting_url);
+    console.log("==> Meeting Url: ", cur_meeting_url);
 
-  const { data, error } = await supabaseGlobal
-    .from("meeting")
-    .upsert([
-      {
-        meeting_url: cur_meeting_url,
-      },
-    ])
-    .select("id")
-    .single();
+    const currentUser = await getCurrentUser();
+    console.log(
+      "currentUser----------------------------------------------------------------",
+      currentUser
+    );
+    // if (!user || !accessToken) {
+    //   throw new Error("Access token or user is not found");
+    // }
+    const { data: teamProfilesData, error: teamProfilesError } =
+      await supabaseGlobal
+        .from("team_profiles")
+        .select("*,teams(*)")
+        .eq("profile_id", currentUser.id);
+    if (teamProfilesError)
+      throw new Error("Error while fetching team profiles");
 
-  console.log("#### [UPSERT] Data: ", data);
-  // console.log("[UPSERT] Error: ", error);
+    if (!teamProfilesData[0].teams.id) {
+      throw new Error("Team Id not found");
+    }
 
-  if (!error) return data;
+    const { data, error } = await supabaseGlobal
+      .from("meeting")
+      .upsert([
+        {
+          meeting_url: cur_meeting_url,
+          team: teamProfilesData[0].teams.id,
+        },
+      ])
+      .select("id")
+      .single();
+    if (error) {
+      throw new Error("Error while updating meeting");
+    }
+
+    console.log("#### [UPSERT] Data: ", data);
+    // console.log("[UPSERT] Error: ", error);
+
+    if (!error) return data;
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 export async function getClientTranscript(meeting_id: number) {
@@ -93,4 +122,39 @@ export async function updateEndTime() {
       duration: duration_in_sec,
     },
   ]);
+}
+
+export async function getCurrentUser(): Promise<null | User> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(
+      ["accessToken", "refreshToken"],
+      async (result) => {
+        const gauthAccessToken = result["accessToken"];
+        const gauthRefreshToken = result["refreshToken"];
+        console.log(gauthAccessToken);
+        console.log(gauthRefreshToken);
+        if (gauthAccessToken && gauthRefreshToken) {
+          try {
+            // set user session from access_token and refresh_token
+            const resp = await supabaseGlobal.auth.setSession({
+              access_token: gauthAccessToken,
+              refresh_token: gauthRefreshToken,
+            });
+            const user = resp.data?.user;
+            if (user) {
+              console.log(user);
+              resolve(user);
+            } else {
+              resolve(null);
+            }
+          } catch (e: any) {
+            console.error("Error: ", e);
+            reject(e);
+          }
+        } else {
+          resolve(null);
+        }
+      }
+    );
+  });
 }
