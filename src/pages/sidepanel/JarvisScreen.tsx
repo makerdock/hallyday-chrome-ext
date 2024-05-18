@@ -179,7 +179,7 @@ const JarvisScreen = () => {
       if (response.data.error) {
         throw new Error(response.data.error);
       }
-      toast.success("Successfully Created Task");
+      toast.success("Successfully send message to slack");
     } catch (error) {
       toast.error("Failed");
       console.error("Error Failed Send Slack Summary", error);
@@ -199,7 +199,7 @@ const JarvisScreen = () => {
           What would you like <br />
           me to do?
         </h2>
-        {!!repText.length && <span>{repText}</span>}
+        {!!repText.length && !endMeetingResponseType && <span>{repText}</span>}
         <div className="flex flex-col gap-1 ml-2 mt-2">
           {endMeetingResponseType === "create_asana_tasks" &&
             asanaTask &&

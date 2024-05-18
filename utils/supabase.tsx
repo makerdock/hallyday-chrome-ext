@@ -129,26 +129,25 @@ export async function getCurrentUser(): Promise<null | User> {
     chrome.storage.local.get(
       ["accessToken", "refreshToken"],
       async (result) => {
-        const gauthAccessToken = result["accessToken"];
-        const gauthRefreshToken = result["refreshToken"];
-        console.log(gauthAccessToken);
-        console.log(gauthRefreshToken);
-        if (gauthAccessToken && gauthRefreshToken) {
+        const authAccessToken = result["accessToken"];
+        const authRefreshToken = result["refreshToken"];
+        console.log("authAccessToken", authAccessToken);
+        console.log("authRefreshToken", authRefreshToken);
+        if (authRefreshToken && authAccessToken) {
           try {
             // set user session from access_token and refresh_token
             const resp = await supabaseGlobal.auth.setSession({
-              access_token: gauthAccessToken,
-              refresh_token: gauthRefreshToken,
+              access_token: authAccessToken,
+              refresh_token: authRefreshToken,
             });
             const user = resp.data?.user;
             if (user) {
-              console.log(user);
               resolve(user);
             } else {
               resolve(null);
             }
           } catch (e: any) {
-            console.error("Error: ", e);
+            console.error("Error while getting current user", e);
             reject(e);
           }
         } else {
