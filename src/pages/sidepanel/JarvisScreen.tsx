@@ -13,7 +13,7 @@ const JarvisScreen = () => {
   const [endMeetingResponseType, setEndMeetingResponseType] =
     useState<string>();
   const [asanaTask, setAsanaTask] = useState<string[]>();
-  const [slackSummary, setSummarySlack] = useState<string[]>();
+  const [slackSummary, setSummarySlack] = useState<string>();
   const [apiCallingStart, setAPICallingStart] = useState<boolean>(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -96,11 +96,10 @@ const JarvisScreen = () => {
         setEndMeetingResponseType(type);
         setAsanaTask(data);
       } else if (type === "send_summary_to_slack") {
-        setEndMeetingResponseType("send_summary_to_slack");
+        setEndMeetingResponseType(type);
         setSummarySlack(data);
       }
 
-      console.log("API call Response after 4 seconds", response.data);
     } catch (error) {
       toast.error(error.message);
       console.error("Error Failed Sending Transcript:", error);
@@ -152,6 +151,43 @@ const JarvisScreen = () => {
     }
   };
 
+  const handleSendSlackSummary = async () => {
+    try {
+      setLoading(true);
+      if (!meetingIdRef.current){
+        throw new Error("meetingId required");
+      } 
+      if (!slackSummary) {
+        throw new Error("slack summary required");
+      }
+      const postData = {
+        meetingId: meetingIdRef.current,
+        transcription: selectedTasks,
+      };
+
+      // Make the POST request using Axios
+      const response = await axios.post(
+        "http://localhost:3000/api/slack",
+        postData,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      if (response.data.error) {
+        throw new Error(response.data.error);
+      }
+      toast.success("Successfully Created Task");
+    } catch (error) {
+      toast.error("Failed");
+      console.error("Error Failed Send Slack Summary", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div
       className="h-full flex text-center place-items-center bg-red-200"
@@ -163,7 +199,7 @@ const JarvisScreen = () => {
           What would you like <br />
           me to do?
         </h2>
-        {!!repText.length && !endMeetingResponseType && <span>{repText}</span>}
+        {!!repText.length && <span>{repText}</span>}
         <div className="flex flex-col gap-1 ml-2 mt-2">
           {endMeetingResponseType === "create_asana_tasks" &&
             asanaTask &&
@@ -187,6 +223,22 @@ const JarvisScreen = () => {
               className="m-2 px-2 py-2 flex justify-center bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               {loading ? <Loader /> : "Create Asana Task"}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 ml-2 mt-2">
+          {endMeetingResponseType === "send_summary_to_slack" &&
+            slackSummary && (
+              <p className="text-sm text-start font-medium text-gray-900">
+                {slackSummary}
+              </p>
+            )}
+          {endMeetingResponseType === "send_summary_to_slack" && (
+            <button
+              onClick={handleSendSlackSummary}
+              className="m-2 px-2 py-2 flex justify-center bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              {loading ? <Loader /> : "Send Slack Summary"}
             </button>
           )}
         </div>
