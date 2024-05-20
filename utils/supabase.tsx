@@ -157,3 +157,25 @@ export async function getCurrentUser(): Promise<null | User> {
     );
   });
 }
+
+export async function getCurrentUserTeamId() {
+  try {
+    const currentUser = await getCurrentUser();
+    const { data: teamProfilesData, error: teamProfilesError } =
+      await supabaseGlobal
+        .from("team_profiles")
+        .select("*,teams(*)")
+        .eq("profile_id", currentUser.id);
+    if (teamProfilesError) {
+      throw new Error("Error while fetching team profiles");
+    }
+
+    if (!teamProfilesData[0].teams.id) {
+      throw new Error("Team Id not found");
+    }
+    return teamProfilesData[0].teams.id;
+  } catch (error) {
+    return null;
+    console.error("Error while getting current user team id", error);
+  }
+}
