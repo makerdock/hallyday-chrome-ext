@@ -13,25 +13,39 @@ import {
   updateEndTime,
   addAndGetMeetingInfo,
   getClientTranscript,
+  getCurrentUser,
 } from "../../../utils/supabase";
 import JarvisScreen from "./JarvisScreen";
 import ActiveMeetingTab from "./ActiveMeetingTab";
 
 const SidePanel = () => {
   const [isMeetingActive, setMeetingActive] = useState<boolean>(true);
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    handleTokens();
+  }, []);
+
+  async function handleTokens() {
+    const userFound = await getCurrentUser();
+    const isSet = await areTokensSet();
+    if (isSet && userFound) setLoggedIn(true);
+  }
 
   if (isMeetingActive) {
     return (
       <div>
-        <PlaybookDropdown />
+        {loggedIn ? <PlaybookDropdown /> : null}
         <ActiveMeetingTab />
         <div className="max-w-full w-full fixed bottom-0 p-2">
-          <button
-            onClick={() => setMeetingActive(false)}
-            className="bg-red-500 text-white py-2 rounded-lg w-full"
-          >
-            End meeting
-          </button>
+          {loggedIn ? (
+            <button
+              onClick={() => setMeetingActive(false)}
+              className="bg-red-500 text-white py-2 rounded-lg w-full"
+            >
+              End meeting
+            </button>
+          ) : null}
         </div>
       </div>
     );

@@ -13,6 +13,7 @@ import {
   updateEndTime,
   addAndGetMeetingInfo,
   getClientTranscript,
+  getCurrentUser,
 } from "../../../utils/supabase";
 import JarvisScreen from "./JarvisScreen";
 
@@ -162,8 +163,9 @@ const ActiveMeetingTab = () => {
   }
 
   async function handleTokens() {
+    const userFound = await getCurrentUser();
     const isSet = await areTokensSet();
-    if (isSet) setLoggedIn(true);
+    if (isSet && userFound) setLoggedIn(true);
   }
 
   useEffect(() => {
@@ -381,7 +383,7 @@ const ActiveMeetingTab = () => {
       ) : (
         <div className="w-full flex">
           <button
-            className="p-2 px-4 bg-gray-500 rounded-md mx-auto"
+            className="p-2 px-4 m-2 bg-gray-500 rounded-md mx-auto"
             onClick={handleLogin}
           >
             LogIn

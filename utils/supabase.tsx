@@ -131,8 +131,6 @@ export async function getCurrentUser(): Promise<null | User> {
       async (result) => {
         const authAccessToken = result["accessToken"];
         const authRefreshToken = result["refreshToken"];
-        console.log("authAccessToken", authAccessToken);
-        console.log("authRefreshToken", authRefreshToken);
         if (authRefreshToken && authAccessToken) {
           try {
             // set user session from access_token and refresh_token
