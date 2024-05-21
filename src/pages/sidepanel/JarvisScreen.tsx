@@ -204,7 +204,7 @@ const JarvisScreen = () => {
           What would you like <br />
           me to do?
         </h2>
-        {!!repText.length && <span>{repText}</span>}
+        {!!repText.length && <span className="text-lg">{repText}</span>}
         <div className="flex flex-col gap-1 ml-2 mt-2">
           {endMeetingResponseType === "create_asana_tasks" &&
             asanaTask &&
