@@ -2,7 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Message } from "../../../utils/recorderUtils";
 import { SpeakerType } from "../../../utils/speakerType";
-import { addAndGetMeetingInfo } from "../../../utils/supabase";
+import {
+  addAndGetMeetingInfo,
+  addTranscription,
+} from "../../../utils/supabase";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
 
@@ -22,20 +25,17 @@ const JarvisScreen = () => {
     chrome.runtime.onMessage.addListener((request) => {
       console.log("request------------------------------------->", request);
       console.log("12c2 request.message.data: ", request.message);
-
       switch (request.message.type) {
         case "REP_TRANSCRIPT":
           {
-            if (!apiCallingStart) {
-              const { message_text } = request.message.data;
-              setRepText((m) => m + message_text);
-              const message: Message = {
-                speaker_type: SpeakerType.REP,
-                message_text,
-                meeting_id: meetingIdRef.current,
-              };
-              // addTranscription(message);
-            }
+            const { message_text } = request.message.data;
+            setRepText((m) => m + message_text);
+            const message: Message = {
+              speaker_type: SpeakerType.REP,
+              message_text,
+              meeting_id: meetingIdRef.current,
+            };
+            addTranscription(message);
           }
           break;
       }
@@ -43,7 +43,6 @@ const JarvisScreen = () => {
   }, []);
 
   useEffect(() => {
-    console.log("rep Text changing-------------------------------->", repText);
     // Start or reset the timer when repText changes
     if (repText.length) {
       if (timerRef.current) clearTimeout(timerRef.current); // Reset the timer if already set
@@ -56,12 +55,19 @@ const JarvisScreen = () => {
   }, [repText]);
 
   useEffect(() => {
-    if (apiCallingStart) {
+    if (apiCallingStart && !endMeetingResponseType) {
       handleRecordingStart().then(() => {
         sendTranscriptToBackend(meetingIdRef.current);
       });
+    } else if (
+      apiCallingStart &&
+      endMeetingResponseType === "create_asana_tasks"
+    ) {
+      handleCreateAsanaTask().then(() => {
+        console.log("asana task created successfully");
+      });
     }
-  }, [apiCallingStart]);
+  }, [apiCallingStart, endMeetingResponseType]);
 
   async function handleRecordingStart() {
     const { id } = await addAndGetMeetingInfo();
@@ -99,10 +105,11 @@ const JarvisScreen = () => {
         setEndMeetingResponseType(type);
         setSummarySlack(data);
       }
-
     } catch (error) {
       toast.error(error.message);
       console.error("Error Failed Sending Transcript:", error);
+    } finally {
+      setRepText("");
     }
   }
 
@@ -116,16 +123,15 @@ const JarvisScreen = () => {
 
   const handleCreateAsanaTask = async () => {
     try {
-      setLoading(true);
       if (!meetingIdRef.current) throw new Error("meetingId required");
-      if (!selectedTasks || selectedTasks.length === 0) {
-        toast.error("Task and MeetingId are required");
-        throw new Error("task required");
+      if (!asanaTask || asanaTask.length === 0) {
+        toast.error("Tasks and MeetingId are required");
+        throw new Error("task required and meetingId required");
       }
 
       const postData = {
         meetingId: meetingIdRef.current,
-        tasks: selectedTasks,
+        tasks: asanaTask,
       };
 
       // Make the POST request using Axios
@@ -139,6 +145,7 @@ const JarvisScreen = () => {
           },
         }
       );
+
       if (response.data.error) {
         throw new Error(response.data.error);
       }
@@ -146,17 +153,15 @@ const JarvisScreen = () => {
     } catch (error) {
       toast.error("Failed");
       console.error("Error Failed Create Asana API", error);
-    } finally {
-      setLoading(false);
-    }
+    } 
   };
 
   const handleSendSlackSummary = async () => {
     try {
       setLoading(true);
-      if (!meetingIdRef.current){
+      if (!meetingIdRef.current) {
         throw new Error("meetingId required");
-      } 
+      }
       if (!slackSummary) {
         throw new Error("slack summary required");
       }
@@ -199,32 +204,33 @@ const JarvisScreen = () => {
           What would you like <br />
           me to do?
         </h2>
-        {!!repText.length && !endMeetingResponseType && <span>{repText}</span>}
+        {!!repText.length && <span>{repText}</span>}
         <div className="flex flex-col gap-1 ml-2 mt-2">
           {endMeetingResponseType === "create_asana_tasks" &&
             asanaTask &&
             asanaTask.map((task, index) => (
               <div className="flex gap-2 p-1" key={index}>
-                <input
+                {/* <input
                   type="checkbox"
                   value={task}
                   checked={selectedTasks.includes(task)}
                   onChange={() => handleCheckboxChange(task)}
                   className="text-black  rounded"
-                />
+                /> */}
+                <span>{index + 1}</span>
                 <p className="text-sm text-start font-medium text-gray-900">
                   {task}
                 </p>
               </div>
             ))}
-          {endMeetingResponseType === "create_asana_tasks" && (
+          {/* {endMeetingResponseType === "create_asana_tasks" && (
             <button
               onClick={handleCreateAsanaTask}
               className="m-2 px-2 py-2 flex justify-center bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               {loading ? <Loader /> : "Create Asana Task"}
             </button>
-          )}
+          )} */}
         </div>
         <div className="flex flex-col gap-1 ml-2 mt-2">
           {endMeetingResponseType === "send_summary_to_slack" &&
