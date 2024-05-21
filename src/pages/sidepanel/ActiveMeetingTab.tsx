@@ -16,6 +16,7 @@ import {
   getCurrentUser,
 } from "../../../utils/supabase";
 import JarvisScreen from "./JarvisScreen";
+import PlaybookDropdown from "./PlaybookDropdown";
 
 const ActiveMeetingTab = () => {
   const HALLYDAY_WEBAPP = "https://hallyday-dashboard.vercel.app";
@@ -262,7 +263,6 @@ const ActiveMeetingTab = () => {
 
   function handleClick() {
     setListeningMsg(query);
-
     chrome.runtime.sendMessage({
       message: {
         type: "TRANSCRIPTION_USER_INPUT",
@@ -282,13 +282,13 @@ const ActiveMeetingTab = () => {
 
   return (
     <div className="h-full" ref={ActiveMeetingTabRef} id="ActiveMeetingTab">
+      {loggedIn && <PlaybookDropdown />}
       {loggedIn ? (
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between p-4 bg-gray-300">
             <h2>Hallyday AI</h2>
             <p>{recordingState}</p>
           </div>
-
           <div className="flex flex-col flex-grow max-h-[calc(100%_-_54px)]">
             {showListeningMsg && (
               <div className="p-4 bg-gray-300 m-4 relative">
@@ -304,7 +304,6 @@ const ActiveMeetingTab = () => {
                 !
               </div>
             )}
-
             <div
               className={clsx(
                 "overflow-auto flex-1 flex-grow p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#474848]"
@@ -359,25 +358,6 @@ const ActiveMeetingTab = () => {
                 );
               })}
             </div>
-
-            {/* {showListeningMsg && (
-              <div className="w-full p-4 mt-auto">
-                <input
-                  type="text"
-                  className="input w-full p-4 bg-[#F3F4F6]"
-                  placeholder="Enter your query"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.code === "Enter" || e.code === "NumpadEnter") {
-                      e.preventDefault();
-                      handleClick();
-                      setQuery("");
-                    }
-                  }}
-                />
-              </div>
-            )} */}
           </div>
         </div>
       ) : (
@@ -390,6 +370,16 @@ const ActiveMeetingTab = () => {
           </button>
         </div>
       )}
+      <div className="max-w-full w-full fixed bottom-0 p-2">
+        {loggedIn && (
+          <button
+            onClick={handleEndMeetingClick}
+            className="bg-red-500 text-white py-2 rounded-lg w-full"
+          >
+            End meeting
+          </button>
+        )}
+      </div>
     </div>
   );
 };

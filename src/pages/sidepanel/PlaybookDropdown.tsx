@@ -7,10 +7,6 @@ export default function PlaybookDropdown() {
   const [playbookList, setPlaybookList] = useState([]);
 
   useEffect(() => {
-    console.log("[UE] selected: ", selected);
-  }, [selected]);
-
-  useEffect(() => {
     getPlaybookList();
   }, []);
 
