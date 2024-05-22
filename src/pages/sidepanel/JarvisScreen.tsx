@@ -13,12 +13,15 @@ const JarvisScreen = () => {
   const meetingIdRef = useRef<number | null>(null);
   const [repText, setRepText] = useState<string>("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [endMeetingResponseType, setEndMeetingResponseType] =
-    useState<string>();
+  const [endMeetingAction, setEndMeetingAction] = useState<string>();
   const [asanaTask, setAsanaTask] = useState<string[]>();
   const [slackSummary, setSummarySlack] = useState<string>();
-  const [apiCallingStart, setAPICallingStart] = useState<boolean>(false);
-  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
+  const [isEndMettingAPICall, setIsEndMeetingAPICall] =
+    useState<boolean>(false);
+  const [asanaCreateAPICalling, setAsanaCreateAPICalling] =
+    useState<boolean>(false);
+  const [slackTaskCreateAPICalling, setSlackTaskCreateAPICalling] =
+    useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -29,7 +32,9 @@ const JarvisScreen = () => {
         case "REP_TRANSCRIPT":
           {
             const { message_text } = request.message.data;
-            setRepText((m) => m + message_text);
+            if (!isEndMettingAPICall || !asanaCreateAPICalling) {
+              setRepText((m) => m + message_text);
+            }
             const message: Message = {
               speaker_type: SpeakerType.REP,
               message_text,
@@ -43,38 +48,38 @@ const JarvisScreen = () => {
   }, []);
 
   useEffect(() => {
-    // Start or reset the timer when repText changes
     if (repText.length) {
-      if (timerRef.current) clearTimeout(timerRef.current); // Reset the timer if already set
+      if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
-        // Call the API after 4 seconds if repText hasn't changed
-        setAPICallingStart(true);
-        console.log("API call after 4 seconds");
+        if (!endMeetingAction) {
+          setIsEndMeetingAPICall(true);
+        } else if (endMeetingAction === "create_asana_tasks") {
+          setAsanaCreateAPICalling(true);
+        } else if (endMeetingAction === "send_summary_to_slack") {
+          setSlackTaskCreateAPICalling(true);
+        }
       }, 4000);
     }
   }, [repText]);
 
   useEffect(() => {
-    if (apiCallingStart && !endMeetingResponseType) {
+    if (isEndMettingAPICall && !endMeetingAction) {
       handleRecordingStart().then(() => {
-        sendTranscriptToBackend(meetingIdRef.current);
+        sendEndMeetingTranscript(meetingIdRef.current);
       });
-    } else if (
-      apiCallingStart &&
-      endMeetingResponseType === "create_asana_tasks"
-    ) {
+    } else if (isEndMettingAPICall && asanaCreateAPICalling) {
       handleCreateAsanaTask().then(() => {
         console.log("asana task created successfully");
       });
     }
-  }, [apiCallingStart, endMeetingResponseType]);
+  }, [isEndMettingAPICall, asanaCreateAPICalling]);
 
   async function handleRecordingStart() {
     const { id } = await addAndGetMeetingInfo();
     meetingIdRef.current = id;
   }
 
-  async function sendTranscriptToBackend(meeting_id: number) {
+  async function sendEndMeetingTranscript(meeting_id: number) {
     try {
       if (!meeting_id) throw new Error("meetingId required");
 
@@ -99,10 +104,10 @@ const JarvisScreen = () => {
       const { data, type } = response.data;
 
       if (type === "create_asana_tasks" && data) {
-        setEndMeetingResponseType(type);
+        setEndMeetingAction(type);
         setAsanaTask(data);
       } else if (type === "send_summary_to_slack") {
-        setEndMeetingResponseType(type);
+        setEndMeetingAction(type);
         setSummarySlack(data);
       }
     } catch (error) {
@@ -112,14 +117,6 @@ const JarvisScreen = () => {
       setRepText("");
     }
   }
-
-  const handleCheckboxChange = (task: string) => {
-    setSelectedTasks((prevSelectedTasks) =>
-      prevSelectedTasks.includes(task)
-        ? prevSelectedTasks.filter((t) => t !== task)
-        : [...prevSelectedTasks, task]
-    );
-  };
 
   const handleCreateAsanaTask = async () => {
     try {
@@ -153,7 +150,7 @@ const JarvisScreen = () => {
     } catch (error) {
       toast.error("Failed");
       console.error("Error Failed Create Asana API", error);
-    } 
+    }
   };
 
   const handleSendSlackSummary = async () => {
@@ -167,7 +164,6 @@ const JarvisScreen = () => {
       }
       const postData = {
         meetingId: meetingIdRef.current,
-        transcription: selectedTasks,
       };
 
       // Make the POST request using Axios
@@ -206,40 +202,24 @@ const JarvisScreen = () => {
         </h2>
         {!!repText.length && <span className="text-lg">{repText}</span>}
         <div className="flex flex-col gap-1 ml-2 mt-2">
-          {endMeetingResponseType === "create_asana_tasks" &&
+          {endMeetingAction === "create_asana_tasks" &&
             asanaTask &&
             asanaTask.map((task, index) => (
               <div className="flex gap-2 p-1" key={index}>
-                {/* <input
-                  type="checkbox"
-                  value={task}
-                  checked={selectedTasks.includes(task)}
-                  onChange={() => handleCheckboxChange(task)}
-                  className="text-black  rounded"
-                /> */}
                 <span>{index + 1}</span>
                 <p className="text-sm text-start font-medium text-gray-900">
                   {task}
                 </p>
               </div>
             ))}
-          {/* {endMeetingResponseType === "create_asana_tasks" && (
-            <button
-              onClick={handleCreateAsanaTask}
-              className="m-2 px-2 py-2 flex justify-center bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              {loading ? <Loader /> : "Create Asana Task"}
-            </button>
-          )} */}
         </div>
         <div className="flex flex-col gap-1 ml-2 mt-2">
-          {endMeetingResponseType === "send_summary_to_slack" &&
-            slackSummary && (
-              <p className="text-sm text-start font-medium text-gray-900">
-                {slackSummary}
-              </p>
-            )}
-          {endMeetingResponseType === "send_summary_to_slack" && (
+          {endMeetingAction === "send_summary_to_slack" && slackSummary && (
+            <p className="text-sm text-start font-medium text-gray-900">
+              {slackSummary}
+            </p>
+          )}
+          {endMeetingAction === "send_summary_to_slack" && (
             <button
               onClick={handleSendSlackSummary}
               className="m-2 px-2 py-2 flex justify-center bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
