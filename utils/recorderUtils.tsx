@@ -1,4 +1,5 @@
 import { RecordingStates } from "./recordingState";
+import { fetchUserInfo, refreshTokens } from "./supabase";
 
 export interface MeetingUrl {
   cur_meeting_url: string;
@@ -11,6 +12,7 @@ export interface RecordingState {
 export interface Tokens {
   accessToken: string;
   refreshToken: string;
+  expiryTime: number;
 }
 
 export interface Message {
@@ -64,17 +66,50 @@ export async function isRecordingInProgress() {
 
 // These tokens are set while authentication.
 export async function areTokensSet() {
-  const { accessToken, refreshToken } = (await getTokens()) as Tokens;
-  return accessToken && refreshToken;
+  const { accessToken, refreshToken, expiryTime } =
+    (await getTokens()) as Tokens;
+  if (!accessToken || !refreshToken) {
+    return false;
+  }
+  if (Date.now() > expiryTime) {
+    // Token expired, try to refresh
+
+    return await refreshTokens(refreshToken);
+  }
+  return true;
 }
 
 export async function getTokens() {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get(
-      ["accessToken", "refreshToken"],
-      ({ accessToken, refreshToken }) => {
-        resolve({ accessToken, refreshToken });
+      ["accessToken", "refreshToken", "expiryTime"],
+      ({ accessToken, refreshToken, expiryTime }) => {
+        resolve({ accessToken, refreshToken, expiryTime });
       }
     );
   });
+}
+
+// Function to store tokens and expiry time
+export async function storeTokens(
+  accessToken: string,
+  refreshToken: string,
+  expiresIn: number
+) {
+  const expiryTime = Date.now() + expiresIn * 1000;
+  await chrome.storage.local.set({
+    accessToken,
+    refreshToken,
+    expiryTime,
+  });
+}
+
+export async function getUserInfo() {
+  const tokensValid = await areTokensSet();
+  if (!tokensValid) {
+    throw new Error("User is not authenticated");
+  }
+
+  const { accessToken } = (await getTokens()) as Tokens;
+  return fetchUserInfo(accessToken);
 }

@@ -1,6 +1,13 @@
 // supabase.ts
 import { SupabaseClient, User, createClient } from "@supabase/supabase-js";
-import { MeetingUrl, Message, getMeetingUrl } from "./recorderUtils";
+import {
+  MeetingUrl,
+  Message,
+  areTokensSet,
+  getMeetingUrl,
+  getUserInfo,
+  storeTokens,
+} from "./recorderUtils";
 import axios from "axios";
 import { SpeakerType } from "./speakerType";
 
@@ -36,46 +43,46 @@ export async function addAndGetMeetingInfo() {
 
     console.log("==> Meeting Url: ", cur_meeting_url);
 
-    const currentUser = await getCurrentUser();
-    console.log(
-      "currentUser----------------------------------------------------------------",
-      currentUser
-    );
-    // if (!user || !accessToken) {
-    //   throw new Error("Access token or user is not found");
-    // }
-    const { data: teamProfilesData, error: teamProfilesError } =
-      await supabaseGlobal
-        .from("team_profiles")
-        .select("*,teams(*)")
-        .eq("profile_id", currentUser.id);
-    if (teamProfilesError)
-      throw new Error("Error while fetching team profiles");
-
-    if (!teamProfilesData[0].teams.id) {
+    const currentTeamId = await getCurrentUserTeamId();
+    if (!currentTeamId) {
       throw new Error("Team Id not found");
     }
+
+    // console.log("User from getUserInfo: ", user);
+    // // const currentUser = await getCurrentUser();
+    // const { data: teamProfilesData, error: teamProfilesError } =
+    //   await supabaseGlobal
+    //     .from("team_profiles")
+    //     .select("*,teams(*)")
+    //     .eq("profile_id", user?.user?.id);
+    // if (teamProfilesError)
+    //   throw new Error("Error while fetching team profiles");
+
+    // if (!teamProfilesData[0].teams.id) {
+    //   throw new Error("Team Id not found");
+    // }
 
     const { data, error } = await supabaseGlobal
       .from("meeting")
       .upsert([
         {
           meeting_url: cur_meeting_url,
-          team: teamProfilesData[0].teams.id,
+          team: currentTeamId,
         },
       ])
       .select("id")
       .single();
     if (error) {
-      throw new Error("Error while updating meeting");
+      throw new Error("Error while updating meeting: " + error.message);
     }
 
     console.log("#### [UPSERT] Data: ", data);
-    // console.log("[UPSERT] Error: ", error);
+    return data;
 
     if (!error) return data;
   } catch (error) {
-    console.error(error);
+    console.error("Error in addAndGetMeetingInfo: ", error);
+    return null;
   }
 }
 
@@ -124,56 +131,117 @@ export async function updateEndTime() {
   ]);
 }
 
-export async function getCurrentUser(): Promise<null | User> {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get(
-      ["accessToken", "refreshToken"],
-      async (result) => {
-        const authAccessToken = result["accessToken"];
-        const authRefreshToken = result["refreshToken"];
-        if (authRefreshToken && authAccessToken) {
-          try {
-            // set user session from access_token and refresh_token
-            const resp = await supabaseGlobal.auth.setSession({
-              access_token: authAccessToken,
-              refresh_token: authRefreshToken,
-            });
-            const user = resp.data?.user;
-            if (user) {
-              resolve(user);
-            } else {
-              resolve(null);
-            }
-          } catch (e: any) {
-            console.error("Error while getting current user", e);
-            reject(e);
-          }
-        } else {
-          resolve(null);
-        }
-      }
-    );
-  });
-}
-
-export async function getCurrentUserTeamId() {
+//get current user Team Id
+export async function getCurrentUserTeamId(): Promise<string | null> {
   try {
-    const currentUser = await getCurrentUser();
+    const user = await getUserInfo();
+    console.log("[Current User]", user);
+
+    if (!user || !user.id) {
+      throw new Error("User does not exist or is not authenticated");
+    }
+
     const { data: teamProfilesData, error: teamProfilesError } =
       await supabaseGlobal
         .from("team_profiles")
-        .select("*,teams(*)")
-        .eq("profile_id", currentUser.id);
+        .select("*, teams(id)")
+        .eq("profile_id", user.id);
+
     if (teamProfilesError) {
-      throw new Error("Error while fetching team profiles");
+      throw new Error(
+        "Error while fetching team profiles: " + teamProfilesError.message
+      );
     }
 
-    if (!teamProfilesData[0].teams.id) {
-      throw new Error("Team Id not found");
+    if (
+      !teamProfilesData ||
+      teamProfilesData.length === 0 ||
+      !teamProfilesData[0].teams.id
+    ) {
+      throw new Error("Team ID not found for the user");
     }
-    return teamProfilesData[0].teams.id;
+
+    const teamId = teamProfilesData[0].teams.id;
+    console.log("[Current User TeamId]", teamId);
+    return teamId;
   } catch (error) {
+    console.error("Error while getting current user team ID", error);
     return null;
-    console.error("Error while getting current user team id", error);
   }
 }
+
+// session Refresh
+export async function refreshTokens(refreshToken: string) {
+  try {
+    const { data, error } = await supabaseGlobal.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (data.session) {
+      const { access_token, refresh_token, expires_in } = data.session;
+      const expiryTime = Date.now() + expires_in * 1000;
+
+      storeTokens(access_token, refresh_token, expiryTime);
+
+      return true;
+    } else {
+      throw new Error("Session refresh failed");
+    }
+  } catch (error) {
+    console.error("Error refreshing Sessions: ", error);
+    return false;
+  }
+}
+
+// fetch Current User
+export async function fetchUserInfo(accessToken: string) {
+  try {
+    const { data, error } = await supabaseGlobal.auth.getUser(accessToken);
+    if (error) {
+      throw error;
+    }
+
+    return data.user;
+  } catch (error) {
+    console.error("Error fetching user information: ", error);
+    throw error;
+  }
+}
+
+// export async function getCurrentUser(): Promise<null | User> {
+//   return new Promise((resolve, reject) => {
+//     chrome.storage.local.get(
+//       ["accessToken", "refreshToken"],
+//       async (result) => {
+//         const authAccessToken = result["accessToken"];
+//         const authRefreshToken = result["refreshToken"];
+//         console.log("authAccessToken", authAccessToken);
+//         console.log("authRefreshToken", authRefreshToken);
+//         if (authRefreshToken && authAccessToken) {
+//           try {
+//             // set user session from access_token and refresh_token
+//             const resp = await supabaseGlobal.auth.setSession({
+//               access_token: authAccessToken,
+//               refresh_token: authRefreshToken,
+//             });
+//             const user = resp.data?.user;
+//             if (user) {
+//               resolve(user);
+//             } else {
+//               resolve(null);
+//             }
+//           } catch (e: any) {
+//             console.error("Error while getting current user", e);
+//             reject(e);
+//           }
+//         } else {
+//           resolve(null);
+//         }
+//       }
+//     );
+//   });
+// }

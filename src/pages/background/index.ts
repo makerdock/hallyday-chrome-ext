@@ -86,9 +86,9 @@ chrome.action.onClicked.addListener(async (tab) => {
   if (await isRecordingInProgress()) {
     console.log("=== RECORDING IS IN PROGRESS ===");
 
-    const tabData = await isSameTab()
-    console.log("🚀 ~ chrome.action.onClicked.addListener ~ tabData:", tabData)
-    if (!!tabData) {
+    const tabData = await isSameTab();
+    console.log("🚀 ~ chrome.action.onClicked.addListener ~ tabData:", tabData);
+    if (tabData) {
       initateRecordingStop();
       // If user is trying to record from an another tab
     } else {
@@ -168,11 +168,13 @@ const setTokens = async (
 
       const accessToken = params.get("access_token");
       const refreshToken = params.get("refresh_token");
+      const expiresIn = parseInt(params.get("expires_in"), 10);
 
-      if (accessToken && refreshToken) {
+      if (accessToken && refreshToken && !isNaN(expiresIn)) {
         if (!tab.id) return;
 
-        // console.log("--> tokens: ", accessToken, refreshToken);
+        const expiryTime = Date.now() + expiresIn * 1000; // expiresIn is in seconds
+        console.log("--> tokens: ", accessToken, refreshToken, expiryTime);
 
         // we can close that tab now
         await chrome.tabs.remove(tab.id);
@@ -193,6 +195,9 @@ const setTokens = async (
         });
         await chrome.storage.local.set({
           refreshToken,
+        });
+        await chrome.storage.local.set({
+          expiryTime,
         });
 
         // remove tab listener as tokens are set

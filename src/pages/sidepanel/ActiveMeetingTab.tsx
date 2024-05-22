@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { RecordingStates } from "../../../utils/recordingState";
 import { SpeakerType } from "../../../utils/speakerType";
-import { Message, areTokensSet, isSameTab } from "../../../utils/recorderUtils";
+import {
+  Message,
+  areTokensSet,
+  getUserInfo,
+  isSameTab,
+} from "../../../utils/recorderUtils";
 
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-
 import clsx from "clsx";
-
 import {
   addTranscription,
   updateEndTime,
   addAndGetMeetingInfo,
   getClientTranscript,
-  getCurrentUser,
 } from "../../../utils/supabase";
 import JarvisScreen from "./JarvisScreen";
 import PlaybookDropdown from "./PlaybookDropdown";
@@ -66,7 +68,6 @@ const ActiveMeetingTab = () => {
   );
 
   const [query, setQuery] = useState<string>("");
-
   const showListeningMsgRef = useRef<boolean>(null);
   const ActiveMeetingTabRef = useRef<HTMLDivElement>(null);
   const meetingIdRef = useRef<number>(-1);
@@ -164,9 +165,13 @@ const ActiveMeetingTab = () => {
   }
 
   async function handleTokens() {
-    const userFound = await getCurrentUser();
+    // const userFound = await getCurrentUser();
+    // const user = await getUserInfo();
+    // console.log("User found in handleTokens", user);
+    // console.log("user found", userFound);
+    // console.log("is set", isSet);
     const isSet = await areTokensSet();
-    if (isSet && userFound) setLoggedIn(true);
+    if (isSet) setLoggedIn(true);
   }
 
   useEffect(() => {
@@ -366,7 +371,7 @@ const ActiveMeetingTab = () => {
             className="p-2 px-4 m-2 bg-gray-500 rounded-md mx-auto"
             onClick={handleLogin}
           >
-            LogIn
+            Login
           </button>
         </div>
       )}
