@@ -11,13 +11,13 @@ export default function PlaybookDropdown() {
   }, []);
 
   async function getPlaybookList() {
-    const id = await getCurrentUserTeamId();
+    const temaId = await getCurrentUserTeamId();
     try {
-      if (!id) {
-        throw new Error("Id not found");
+      if (!temaId) {
+        throw new Error("Team Id not found");
       }
       const response = await fetch(
-        `http://localhost:3000/api/playbook/list?team_id=${id}`
+        `http://localhost:3000/api/playbook/list?team_id=${temaId}`
       );
 
       if (!response.ok) {
@@ -27,7 +27,7 @@ export default function PlaybookDropdown() {
       }
 
       const playbook = await response.json();
-      console.log("playbook LIST DATA:", playbook);
+      console.log("[playbook LIST DATA]", playbook);
 
       setPlaybookList(playbook);
       setSelected(playbook[0]);
