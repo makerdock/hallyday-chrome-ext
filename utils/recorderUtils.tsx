@@ -94,9 +94,8 @@ export async function getTokens() {
 export async function storeTokens(
   accessToken: string,
   refreshToken: string,
-  expiresIn: number
+  expiryTime: number
 ) {
-  const expiryTime = Date.now() + expiresIn * 1000;
   await chrome.storage.local.set({
     accessToken,
     refreshToken,
