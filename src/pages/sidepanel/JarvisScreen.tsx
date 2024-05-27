@@ -96,7 +96,8 @@ const JarvisScreen = () => {
     return () => {
       chrome.runtime.onMessage.removeListener(messageListener);
     };
-  }, [asanaTask, slackSummary]);
+  }, [asanaTask, slackSummary,repText]);
+
 
   return (
     <div
