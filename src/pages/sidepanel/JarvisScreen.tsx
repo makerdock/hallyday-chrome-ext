@@ -12,182 +12,91 @@ import { Toaster, toast } from "sonner";
 const JarvisScreen = () => {
   const meetingIdRef = useRef<number | null>(null);
   const [repText, setRepText] = useState<string>("");
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [endMeetingAction, setEndMeetingAction] = useState<string>();
-  const [asanaTask, setAsanaTask] = useState<string[]>();
-  const [slackSummary, setSummarySlack] = useState<string>();
-  const [isEndMettingAPICall, setIsEndMeetingAPICall] =
-    useState<boolean>(false);
-  const [asanaCreateAPICalling, setAsanaCreateAPICalling] =
-    useState<boolean>(false);
-  const [slackTaskCreateAPICalling, setSlackTaskCreateAPICalling] =
-    useState<boolean>(false);
+  const [asanaTask, setAsanaTask] = useState<string[]>([]);
+  const [slackSummary, setSlackSummary] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    chrome.runtime.onMessage.addListener((request) => {
-      console.log("request------------------------------------->", request);
-      console.log("12c2 request.message.data: ", request.message);
-      switch (request.message.type) {
-        case "REP_TRANSCRIPT":
-          {
-            const { message_text } = request.message.data;
-            if (!isEndMettingAPICall || !asanaCreateAPICalling) {
-              setRepText((m) => m + message_text);
-            }
-            const message: Message = {
-              speaker_type: SpeakerType.REP,
-              message_text,
-              meeting_id: meetingIdRef.current,
-            };
-            addTranscription(message);
-          }
-          break;
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    if (repText.length) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        if (!endMeetingAction) {
-          setIsEndMeetingAPICall(true);
-        } else if (endMeetingAction === "create_asana_tasks") {
-          setAsanaCreateAPICalling(true);
-        } else if (endMeetingAction === "send_summary_to_slack") {
-          setSlackTaskCreateAPICalling(true);
+    const messageListener = (request: any) => {
+      console.log("request:", request);
+      if (request.message.type === "REP_TRANSCRIPT" && !loading) {
+        const { message_text } = request.message.data;
+        setRepText((prevText) => prevText + message_text);
+        if (!meetingIdRef.current) {
+          startRecording().then(() => {
+            saveTranscription(message_text);
+          });
+        } else {
+          saveTranscription(message_text);
         }
-      }, 4000);
-    }
-  }, [repText]);
+      }
+    };
 
-  useEffect(() => {
-    if (isEndMettingAPICall && !endMeetingAction) {
-      handleRecordingStart().then(() => {
-        sendEndMeetingTranscript(meetingIdRef.current);
-      });
-    } else if (isEndMettingAPICall && asanaCreateAPICalling) {
-      handleCreateAsanaTask().then(() => {
-        console.log("asana task created successfully");
-      });
-    }
-  }, [isEndMettingAPICall, asanaCreateAPICalling]);
+    const startRecording = async () => {
+      const { id } = await addAndGetMeetingInfo();
+      meetingIdRef.current = id;
+    };
 
-  async function handleRecordingStart() {
-    const { id } = await addAndGetMeetingInfo();
-    meetingIdRef.current = id;
-  }
-
-  async function sendEndMeetingTranscript(meeting_id: number) {
-    try {
-      if (!meeting_id) throw new Error("meetingId required");
-
-      const postData = {
-        meetingId: meeting_id,
+    const saveTranscription = async (message_text: string) => {
+      const message: Message = {
+        speaker_type: SpeakerType.REP,
+        message_text,
+        meeting_id: meetingIdRef.current,
       };
+      await addTranscription(message);
+      await callAIAssistantAPI(meetingIdRef.current);
+    };
 
-      // Make the POST request using Axios
-      const response = await axios.post(
-        "http://localhost:3000/api/ai/assistant",
-        postData,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-      const { data, type } = response.data;
-
-      if (type === "create_asana_tasks" && data) {
-        setEndMeetingAction(type);
-        setAsanaTask(data);
-      } else if (type === "send_summary_to_slack") {
-        setEndMeetingAction(type);
-        setSummarySlack(data);
-      }
-    } catch (error) {
-      toast.error(error.message);
-      console.error("Error Failed Sending Transcript:", error);
-    } finally {
-      setRepText("");
-    }
-  }
-
-  const handleCreateAsanaTask = async () => {
-    try {
-      if (!meetingIdRef.current) throw new Error("meetingId required");
-      if (!asanaTask || asanaTask.length === 0) {
-        toast.error("Tasks and MeetingId are required");
-        throw new Error("task required and meetingId required");
-      }
-
-      const postData = {
-        meetingId: meetingIdRef.current,
-        tasks: asanaTask,
-      };
-
-      // Make the POST request using Axios
-      const response = await axios.post(
-        "http://localhost:3000/api/asana",
-        postData,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-      toast.success("Successfully Created Task");
-    } catch (error) {
-      toast.error("Failed");
-      console.error("Error Failed Create Asana API", error);
-    }
-  };
-
-  const handleSendSlackSummary = async () => {
-    try {
+    const callAIAssistantAPI = async (meeting_id: number | null) => {
       setLoading(true);
-      if (!meetingIdRef.current) {
-        throw new Error("meetingId required");
-      }
-      if (!slackSummary) {
-        throw new Error("slack summary required");
-      }
-      const postData = {
-        meetingId: meetingIdRef.current,
-      };
+      console.log({ meetingId: meeting_id, asanaTask, slackSummary });
+      try {
+        if (!meeting_id) throw new Error("Meeting ID required");
 
-      // Make the POST request using Axios
-      const response = await axios.post(
-        "http://localhost:3000/api/slack",
-        postData,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+        const postData = { meetingId: meeting_id, asanaTask, slackSummary };
+
+        console.log("Posting data to assistant API:", postData);
+
+        const response = await axios.post(
+          "http://localhost:3000/api/ai/assistant",
+          postData,
+          {
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        const responseData = response.data;
+
+        if (response.status !== 200 || responseData.error) {
+          throw new Error(responseData.error || "An error occurred");
         }
-      );
-      if (response.data.error) {
-        throw new Error(response.data.error);
+
+        const { data, type } = responseData;
+
+        if (type === "create_asana_tasks" && data) {
+          setEndMeetingAction(type);
+          setAsanaTask(data);
+        } else if (type === "send_summary_to_slack" && data) {
+          setEndMeetingAction(type);
+          setSlackSummary(data);
+        } else if (type === "operation") {
+          toast.success(data);
+        }
+      } catch (error) {
+        toast.error(error.message);
+        console.error("Error sending transcript:", error);
+      } finally {
+        setRepText("");
+        setLoading(false);
       }
-      toast.success("Successfully send message to slack");
-    } catch (error) {
-      toast.error("Failed");
-      console.error("Error Failed Send Slack Summary", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    chrome.runtime.onMessage.addListener(messageListener);
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, [asanaTask, slackSummary]);
 
   return (
     <div
@@ -218,14 +127,6 @@ const JarvisScreen = () => {
             <p className="text-sm text-start font-medium text-gray-900">
               {slackSummary}
             </p>
-          )}
-          {endMeetingAction === "send_summary_to_slack" && (
-            <button
-              onClick={handleSendSlackSummary}
-              className="m-2 px-2 py-2 flex justify-center bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              {loading ? <Loader /> : "Send Slack Summary"}
-            </button>
           )}
         </div>
       </div>
