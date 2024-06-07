@@ -23,6 +23,12 @@ export interface Message {
   meeting_id?: number;
 }
 
+export interface MessageForPlayBook {
+  speaker_type: "rep" | "client";
+  message_text: string;
+  meeting_id?: number;
+}
+
 export async function isSameTab() {
   // check whether cur_meeting_url is equal to the tab which is active
   const tabs = await chrome.tabs.query({ active: true });

@@ -5,7 +5,7 @@ const Offscreen = () => {
    */
   let client_mediaRecorder;
   let rep_mediaRecorder;
-  let data = [];
+  const data = [];
 
   let old_transcript = "";
   let client_socket;
@@ -148,16 +148,27 @@ const Offscreen = () => {
               let msgData;
               try {
                 msgData = JSON.parse(msg.data);
-              } catch { }
+              } catch {}
 
               if (msgData.type !== "Results") return;
 
               console.log("msgData: ", msgData);
 
               const { transcript } = msgData?.channel.alternatives[0] || {};
-              console.log("🚀 ~ client_socket.onmessage= ~ msgData?.channel.alternatives:", msgData?.channel.alternatives)
+              console.log(
+                "🚀 ~ client_socket.onmessage= ~ msgData?.channel.alternatives:",
+                msgData?.channel.alternatives
+              );
 
               if (transcript) {
+                //sending Current transcript
+                chrome.runtime.sendMessage({
+                  message: {
+                    type: "CLIENT_TRANSCRIPT_CURRENT",
+                    target: "sidepanel",
+                    data: transcript,
+                  },
+                });
                 console.log("---> old_transcript: ", old_transcript);
                 console.log(
                   "\x1b[31m[CLIENT] transcript ->",
@@ -181,7 +192,10 @@ const Offscreen = () => {
                   .slice(-50)
                   .join(" ");
 
-                console.log("🚀 ~ client_socket.onmessage= ~ transcriptionWithThreshold:", transcriptionWithThreshold)
+                console.log(
+                  "🚀 ~ client_socket.onmessage= ~ transcriptionWithThreshold:",
+                  transcriptionWithThreshold
+                );
 
                 chrome.runtime.sendMessage({
                   message: {
@@ -260,68 +274,106 @@ const Offscreen = () => {
   }
 
   async function handleTranscription(transcription) {
-    console.log("🚀 ~ handleTranscription ~ transcription:", transcription)
     let data;
     try {
-      const response = await fetch(
-        "https://hallyday-dashboard.vercel.app/api/ai/reply",
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-          body: JSON.stringify({
-            transcription,
-          }),
-        }
-      );
+      const response = await fetch("http://localhost:3000/api/ai/reply", {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+        body: JSON.stringify({
+          transcription,
+        }),
+      });
 
       data = await response.json();
     } catch (error) {
       console.error(error);
     }
 
-    if (
-      data.aiResponseContent &&
-      data.aiResponseContent.length > 0 &&
-      data.aiResponseContent !== '""'
-    ) {
-      chrome.runtime.sendMessage({
-        message: {
-          type: "CLIENT_TRANSCRIPT_CONTEXT",
-          target: "sidepanel",
-          data: {
-            ai_insight: data.aiResponseContent,
-            user_request_content: data.userRequestContent,
-            message_text: transcription,
-          },
-        },
-      });
-
-      // Reset the old data
-      old_transcript = "";
-    } else {
-      // Set the old transcript so that it can be appended with the next api call
-      // old_transcript = old_transcript + " " + transcript;
-
-      console.log(
-        "\x1b[33m[OLD TRANSCRIPT] transcript ->",
-        old_transcript,
-        "\x1b"
-      );
-
+    if (data?.error) {
       chrome.runtime.sendMessage({
         message: {
           type: "CLIENT_TRANSCRIPT_CONTEXT",
           target: "sidepanel",
           data: {
             ai_insight: "",
-            message_text: "",
             user_request_content: "",
+            message_text: data.transcription,
           },
         },
       });
+      return;
     }
+
+    chrome.runtime.sendMessage({
+      message: {
+        type: "CLIENT_TRANSCRIPT_CONTEXT",
+        target: "sidepanel",
+        data: {
+          ai_insight:
+            data?.aiResponseContent === "" ? "" : data?.aiResponseContent,
+          user_request_content:
+            data.userRequestContent === "" ? "" : data.userRequestContent,
+          message_text: data.transcription,
+        },
+      },
+    });
+
+    if (data.aiResponseContent !== "") {
+      old_transcript = "";
+    } else {
+      // old_transcript = old_transcript + " " + transcription;
+      console.log(
+        "\x1b[33m[OLD TRANSCRIPT] transcript ->",
+        old_transcript,
+        "\x1b"
+      );
+    }
+
+    // if (
+    //   data.aiResponseContent &&
+    //   data.aiResponseContent.length > 0 &&
+    //   data.aiResponseContent !== '""'
+    // ) {
+    //   chrome.runtime.sendMessage({
+    //     message: {
+    //       type: "CLIENT_TRANSCRIPT_CONTEXT",
+    //       target: "sidepanel",
+    //       data: {
+    //         ai_insight: data.aiResponseContent,
+    //         user_request_content: data.userRequestContent,
+    //         message_text: transcription,
+    //       },
+    //     },
+    //   });
+
+    //   // Reset the old data
+    //   old_transcript = "";
+    // } else {
+    //   // Set the old transcript so that it can be appended with the next api call
+    //   // old_transcript = old_transcript + " " + transcript;
+
+    //   console.log(
+    //     "\x1b[33m[OLD TRANSCRIPT] transcript ->",
+    //     old_transcript,
+    //     "\x1b"
+    //   );
+
+    //   chrome.runtime.sendMessage({
+    //     message: {
+    //       type: "CLIENT_TRANSCRIPT_CONTEXT",
+    //       target: "sidepanel",
+    //       data: {
+    //         ai_insight:
+    //           data?.aiResponseContent === "" ? "" : data?.aiResponseContent,
+    //         user_request_content:
+    //           data.userRequestContent === "" ? "" : data.userRequestContent,
+    //         message_text: data.transcription,
+    //       },
+    //     },
+    //   });
+    // }
   }
 
   // https://github.com/deepgram-devs/transcription-chrome-extension/blob/37d34f4b0b2a38ef10ced0f9c02d794dae961407/mic-and-tab/content-script.js#L47

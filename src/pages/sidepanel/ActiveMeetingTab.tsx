@@ -3,8 +3,8 @@ import { RecordingStates } from "../../../utils/recordingState";
 import { SpeakerType } from "../../../utils/speakerType";
 import {
   Message,
+  MessageForPlayBook,
   areTokensSet,
-  getUserInfo,
   isSameTab,
 } from "../../../utils/recorderUtils";
 
@@ -19,6 +19,7 @@ import {
 } from "../../../utils/supabase";
 import JarvisScreen from "./JarvisScreen";
 import PlaybookDropdown from "./PlaybookDropdown";
+import axios from "axios";
 
 const ActiveMeetingTab = () => {
   const HALLYDAY_WEBAPP = "https://hallyday-dashboard.vercel.app";
@@ -34,39 +35,16 @@ const ActiveMeetingTab = () => {
   const [recordingState, setRecordingState] = useState(NOT_RECORDING);
   const [loggedIn, setLoggedIn] = useState(false);
   const [isMeetingActive, setMeetingActive] = useState<boolean>(true);
-  const [transcription, setTranscription] = useState<Message[]>([
-    // {
-    //   aiInsight:
-    //     "**ShipFast** supports an array of components including a **FAQ** component and **UI-only components** like buttons and inputs as external libraries. More details can be found on the provided link below. \n\n[https://shipfa.st/docs/components/faq](https://shipfa.st/docs/components/faq)",
-    //   timestamp: "2024-02-27T15:25:32.885Z",
-    //   messageText:
-    //     "what are the different components supported in and ship first",
-    //   speakerType: "client",
-    // },
-    // {
-    //   aiInsight:
-    //     "**ShipFast** supports an array of components including a **FAQ** component and **UI-only components** like buttons and inputs as external libraries. More details can be found on the provided link below. \n\n[https://shipfa.st/docs/components/faq](https://shipfa.st/docs/components/faq)",
-    //   timestamp: "2024-02-27T15:25:32.885Z",
-    //   messageText:
-    //     "what are the different components supported in and ship first",
-    //   speakerType: "client",
-    // },
-    // {
-    //   aiInsight:
-    //     "**ShipFast** supports an array of components including a **FAQ** component and **UI-only components** like buttons and inputs as external libraries. More details can be found on the provided link below. \n\n[https://shipfa.st/docs/components/faq](https://shipfa.st/docs/components/faq)",
-    //   timestamp: "2024-02-27T15:25:32.885Z",
-    //   messageText:
-    //     "what are the different components supported in and ship first",
-    //   speakerType: "client",
-    // },
-  ]);
-
+  const [transcription, setTranscription] = useState<Message[]>([]);
+  const [transcriptionPlayBook, setTranscriptionPlayBook] = useState<
+    MessageForPlayBook[]
+  >([]);
+  const [nextPlayBookMessage, setNextPlayBookMessage] = useState<string>();
   const [showWelcomeMsg, setShowWelcomeMsg] = useState<boolean>(true);
   const [showListeningMsg, setShowListeningMsg] = useState<boolean>(false);
   const [listeningMsg, setListeningMsg] = useState<string>(
     DEFAULT_LISTENING_MSG
   );
-
   const [query, setQuery] = useState<string>("");
   const showListeningMsgRef = useRef<boolean>(null);
   const ActiveMeetingTabRef = useRef<HTMLDivElement>(null);
@@ -152,46 +130,48 @@ const ActiveMeetingTab = () => {
   }
 
   async function handleEndMeeting() {
-    updateEndTime();
+    await updateEndTime();
 
-    chrome.storage.local.set({
+    await chrome.storage.local.set({
       cur_meeting_url: "",
     });
 
-    chrome.tabs.create({
+    await chrome.tabs.create({
       url: `${HALLYDAY_WEBAPP}/meeting/${meetingIdRef.current}`,
       active: true,
     });
   }
 
   async function handleTokens() {
-    // const userFound = await getCurrentUser();
-    // const user = await getUserInfo();
-    // console.log("User found in handleTokens", user);
-    // console.log("user found", userFound);
-    // console.log("is set", isSet);
     const isSet = await areTokensSet();
     if (isSet) setLoggedIn(true);
   }
 
   useEffect(() => {
     chrome.runtime.onMessage.addListener((request) => {
-      console.log("12c2 request.message.data: ", request.message);
+      console.log("Received request:", request);
 
       switch (request.message.type) {
         case "CLIENT_TRANSCRIPT_CONTEXT":
           {
+            // If JarvisScreen showing
+            if (!isMeetingActive) return;
             const { ai_insight, message_text, user_request_content } =
               request.message.data;
-            // console.log("🚀 ~ chrome.runtime.onMessage.addListener ~ user_request_content:", user_request_content)
+            console.log("[CLIENT_TRANSCRIPT_CONTEXT] Data:", {
+              ai_insight,
+              message_text,
+              user_request_content,
+            });
 
             if (!ai_insight && !message_text) {
               setListeningMsg(FAILED_LISTENING_MSG);
 
               const interval = setInterval(() => {
-                console.log("Setting default msg after 2 secs");
+                console.log(
+                  "Setting default listening message after 2 seconds."
+                );
                 setListeningMsg(DEFAULT_LISTENING_MSG);
-
                 clearInterval(interval);
               }, 2000);
 
@@ -207,18 +187,33 @@ const ActiveMeetingTab = () => {
 
             setTranscription((prev) => {
               const updatedTranscription = [...prev, message];
-
+              console.log(
+                "Updated client transcription:",
+                updatedTranscription
+              );
               addTranscription(message);
               return updatedTranscription;
             });
 
+            setTranscriptionPlayBook((prev) => {
+              const updatedTranscription = [...prev, message];
+              console.log(
+                "Updated current client transcription playbook:",
+                updatedTranscription
+              );
+              return updatedTranscription;
+            });
             setListeningMsg(DEFAULT_LISTENING_MSG);
           }
           break;
 
         case "REP_TRANSCRIPT":
           {
+            // If JarvisScreen showing
+            if (!isMeetingActive) return;
+
             const { message_text } = request.message.data;
+            console.log("[REP_TRANSCRIPT] Message text:", message_text);
 
             const message: Message = {
               speaker_type: SpeakerType.REP,
@@ -226,23 +221,35 @@ const ActiveMeetingTab = () => {
               meeting_id: meetingIdRef.current,
             };
 
-            console.log("===> befre sending: ", meetingIdRef.current);
-
+            console.log(
+              "===> Before adding REP transcription, meeting ID:",
+              meetingIdRef.current
+            );
             addTranscription(message);
+            setTranscriptionPlayBook((prev) => {
+              const updatedTranscription = [...prev, message];
+              console.log(
+                "Updated REP transcription playbook:",
+                updatedTranscription
+              );
+              return updatedTranscription;
+            });
           }
           break;
 
         case "CLIENT_TRANSCRIPT":
           {
             console.log(
-              "[CLIENT_TRANSCRIPT] showListeningMsg: ",
+              "[CLIENT_TRANSCRIPT] showListeningMsg:",
               showListeningMsg,
               showListeningMsgRef.current
             );
+            // If jarvisScreen showing
+            if (!isMeetingActive) return;
 
             if (showListeningMsgRef.current) {
               console.log(
-                "[CLIENT_TRANSCRIPT] request.message.data: ",
+                "[CLIENT_TRANSCRIPT] Listening message data:",
                 request.message.data
               );
               setListeningMsg(request.message.data);
@@ -250,29 +257,106 @@ const ActiveMeetingTab = () => {
           }
           break;
 
+        case "CLIENT_TRANSCRIPT_CURRENT":
+          {
+            const { data } = request.message;
+            console.log("[CLIENT_TRANSCRIPT_CURRENT] Data:", data);
+
+            // const message: Message = {
+            //   speaker_type: SpeakerType.CLIENT,
+            //   message_text: data,
+            //   meeting_id: meetingIdRef.current,
+            // };
+            // addTranscription(message);
+            // setTranscriptionPlayBook((prev) => {
+            //   const updatedTranscription = [...prev, message];
+            //   console.log(
+            //     "Updated current client transcription playbook:",
+            //     updatedTranscription
+            //   );
+            //   return updatedTranscription;
+            // });
+          }
+          break;
+
         case "HANDLE_END_MEETING":
+          console.log("Handling end meeting.");
           handleEndMeeting();
           break;
+
+        default:
+          console.warn("Unknown message type:", request.message.type);
       }
     });
   }, []);
+
+  const checkLastTwoMessages = async (messages: MessageForPlayBook[]) => {
+    if (messages?.length < 2) return;
+
+    const lastTwoMessages = messages.slice(-2);
+    const speakerTypes = lastTwoMessages.map((message) => message.speaker_type);
+
+    if (
+      speakerTypes.includes(SpeakerType.REP) &&
+      speakerTypes.includes(SpeakerType.CLIENT)
+    ) {
+      await callAIPlaybookAPI(meetingIdRef?.current);
+    }
+  };
+
+  useEffect(() => {
+    console.log("[transcriptionPlayBook]:", transcriptionPlayBook);
+    checkLastTwoMessages(transcriptionPlayBook);
+  }, [transcriptionPlayBook]);
+
+  const callAIPlaybookAPI = async (meeting_id: number | null) => {
+    try {
+      if (!meeting_id) throw new Error("Meeting ID required");
+      const selectedPlaybookId = await loadSelectedPlaybookId();
+      if (!selectedPlaybookId) throw new Error("Playbook ID required");
+
+      const postData = {
+        meetingId: meeting_id,
+        playbookId: selectedPlaybookId,
+      };
+
+      const response = await axios.post(
+        "http://localhost:3000/api/ai/playbook",
+        postData,
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const responseData = response.data;
+
+      if (response.status !== 200 || responseData.error) {
+        throw new Error(responseData.error || "An error occurred");
+      }
+
+      const { nextStep } = responseData;
+      setNextPlayBookMessage(nextStep);
+    } catch (error) {
+      console.error("Error sending playbook:", error);
+    }
+  };
+
+  const loadSelectedPlaybookId = () => {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.get("selectedPlaybookId", (result) => {
+        if (chrome.runtime.lastError) {
+          return reject(chrome.runtime.lastError);
+        }
+        resolve(result.selectedPlaybookId);
+      });
+    });
+  };
 
   function handleLogin() {
     chrome.runtime.sendMessage({
       message: {
         type: "LOGIN",
         target: "background",
-      },
-    });
-  }
-
-  function handleClick() {
-    setListeningMsg(query);
-    chrome.runtime.sendMessage({
-      message: {
-        type: "TRANSCRIPTION_USER_INPUT",
-        target: "offscreen",
-        data: query,
       },
     });
   }
@@ -288,6 +372,18 @@ const ActiveMeetingTab = () => {
   return (
     <div className="h-full" ref={ActiveMeetingTabRef} id="ActiveMeetingTab">
       {loggedIn && <PlaybookDropdown />}
+      {loggedIn &&
+        (nextPlayBookMessage ? (
+          <div className="p-4 m-4 relative bg-white border border-gray-300 rounded-lg shadow">
+            <h2 className="text-lg font-bold">Next Action</h2>
+            {nextPlayBookMessage}
+          </div>
+        ) : (
+          <div className="p-4 m-4 relative bg-white border border-gray-300 rounded-lg shadow">
+            <h2 className="text-lg font-bold">Next Action</h2>
+            No new messages. Prepare for the next question.
+          </div>
+        ))}
       {loggedIn ? (
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between p-4 bg-gray-300">
@@ -311,7 +407,7 @@ const ActiveMeetingTab = () => {
             )}
             <div
               className={clsx(
-                "overflow-auto flex-1 flex-grow p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#474848]"
+                "overflow-auto flex-1 flex-grow p-4 scrollbar-t hin scrollbar-track-transparent scrollbar-thumb-[#474848]"
               )}
               ref={scrollRef}
             >
